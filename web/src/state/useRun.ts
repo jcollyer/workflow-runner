@@ -84,9 +84,10 @@ export function useRun() {
     dispatch({ type: 'cancelRequested' })
     try {
       dispatch({ type: 'cancelSettled', snapshot: await cancelRun(runId) })
-    } catch {
-      // The stream remains the source of truth; just re-enable the button.
-      dispatch({ type: 'cancelSettled', snapshot: null })
+    } catch (error) {
+      // The stream remains the source of truth; surface the failure and re-enable the button.
+      const message = error instanceof Error ? error.message : 'Could not cancel the run.'
+      dispatch({ type: 'cancelFailed', message })
     }
   }, [runId])
 

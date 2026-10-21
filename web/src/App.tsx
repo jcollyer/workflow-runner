@@ -57,16 +57,23 @@ function App() {
     [dispatch, screenToFlowPosition, workflow.nodes.length],
   )
 
+  const canRun = !locked && editor.issues.all.length === 0
+
   // Escape deselects from anywhere, including while typing in the side panel.
+  // Cmd/Ctrl+Enter runs the workflow when it is runnable.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-      dispatch({ type: 'select', selection: null })
+      if (event.key === 'Escape') {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        dispatch({ type: 'select', selection: null })
+      } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && canRun) {
+        event.preventDefault()
+        start(workflow)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [dispatch])
+  }, [dispatch, canRun, start, workflow])
 
   return (
     <div className="app">

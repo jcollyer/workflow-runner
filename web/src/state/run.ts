@@ -29,6 +29,8 @@ export type RunState =
       snapshot: RunSnapshot | null
       connection: ConnectionStatus
       cancelling: boolean
+      /** Why the last cancel request failed; cleared on the next attempt. */
+      cancelError?: string
     }
 
 export type RunAction =
@@ -39,7 +41,8 @@ export type RunAction =
   | { type: 'event'; event: RunEvent }
   | { type: 'connection'; status: ConnectionStatus }
   | { type: 'cancelRequested' }
-  | { type: 'cancelSettled'; snapshot: RunSnapshot | null }
+  | { type: 'cancelSettled'; snapshot: RunSnapshot }
+  | { type: 'cancelFailed'; message: string }
   | { type: 'clear' }
 
 export const initialRunState: RunState = { phase: 'idle' }
@@ -69,14 +72,17 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       return state.phase === 'active' ? { ...state, connection: action.status } : state
 
     case 'cancelRequested':
-      return state.phase === 'active' ? { ...state, cancelling: true } : state
+      return state.phase === 'active' ? { ...state, cancelling: true, cancelError: undefined } : state
 
     case 'cancelSettled': {
       if (state.phase !== 'active') return state
       // The cancel response is authoritative, but never let it roll state backwards.
-      const newer = action.snapshot && (!state.snapshot || action.snapshot.seq >= state.snapshot.seq)
+      const newer = !state.snapshot || action.snapshot.seq >= state.snapshot.seq
       return { ...state, cancelling: false, snapshot: newer ? action.snapshot : state.snapshot }
     }
+
+    case 'cancelFailed':
+      return state.phase === 'active' ? { ...state, cancelling: false, cancelError: action.message } : state
 
     case 'clear':
       return initialRunState

@@ -104,6 +104,12 @@ function RunDetailsPanel({ run }: { run: Extract<RunState, { phase: 'active' }> 
           </p>
         )}
 
+        {run.cancelError && !settled && (
+          <p className="callout callout--warning" role="alert">
+            Couldn’t cancel: {run.cancelError} The run is still going; try again.
+          </p>
+        )}
+
         <dl className="details">
           <dt>Run ID</dt>
           <dd className="details__mono">{run.runId}</dd>
@@ -121,6 +127,8 @@ function RunDetailsPanel({ run }: { run: Extract<RunState, { phase: 'active' }> 
             </>
           )}
         </dl>
+
+        {!snapshot && run.connection !== 'lost' && <p className="muted">Waiting for the first update from the server…</p>}
 
         {counts && (
           <dl className="details details--counts">
@@ -198,6 +206,10 @@ function WorkflowPanel({ workflow, issues, dispatch }: Pick<SidePanelProps, 'wor
               <kbd>Esc</kbd>
             </dt>
             <dd>Deselect</dd>
+            <dt>
+              <kbd>⌘/Ctrl</kbd> + <kbd>Enter</kbd>
+            </dt>
+            <dd>Run</dd>
           </dl>
         </section>
       </div>

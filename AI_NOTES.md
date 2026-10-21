@@ -68,7 +68,12 @@ Responded to the agent's M2 plan. Lightly edited:
 
 ## 2. Where the agent was wrong or mediocre
 
-✏️ *No corrections recorded yet. Add concrete cases as they happen: what the agent produced, what you changed, and why.*
+### Run/Cancel race: over-engineered fix replaced with a layout change (M5)
+- **What the agent produced:** having surfaced that a late click on Cancel could land on Run (both shared one button position) and start a new run, the agent implemented a timed "settle hold": extra component state plus a `useEffect` timer that kept the button disabled for one second after every run and showed the outcome.
+- **What I changed:** rejected it and asked for Cancel to sit next to Run, with both enabled or disabled by the rules we already had (DECISIONS #24).
+- **Why:** in my words at the time — "I don't like the amount of complexity we are adding to resolve the Run/Cancel race issue, especially using another useEffect seems like a trade off i would rather not make." Fixed positions remove the race structurally instead of papering over it with timing.
+
+✏️ *Add at least one more concrete case: what the agent produced, what you changed, and why.*
 
 ## 3. What I kept myself
 
@@ -82,5 +87,6 @@ Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISI
 - **Run-time interaction model** — editing lock during starting/running, inspection allowed, presentation cleared on first edit (DECISIONS #11). Accepted the agent's gap-filling defaults but added a visible **Pending** status while a run is starting, rather than only disabling Cancel (DECISIONS #12).
 - **Editing UX** — config edits apply immediately with invalid values kept and flagged, and node deletion removes connected edges (DECISIONS #15). Replaced the agent's proposed five-node first-visit example with a single Input → Transform → Output (DECISIONS #16).
 - **Where to draw the polish line** — deferred visual polish until execution works end to end, to do it by hand (DECISIONS #18).
+- **Run/Cancel race** — chose separate, fixed Run and Cancel buttons over the agent's timed hold (DECISIONS #24; see section 2).
 
 ✏️ *Why you kept these yourself, in your own words.*

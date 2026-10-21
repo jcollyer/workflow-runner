@@ -485,6 +485,8 @@ kbd {
 }
 
 .header__actions {
+  display: flex;
+  gap: 8px;
   margin-left: auto;
 }
 

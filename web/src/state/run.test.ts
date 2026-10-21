@@ -72,6 +72,15 @@ describe('runReducer', () => {
     expect(isRunSettled(fresh)).toBe(true)
   })
 
+  test('a failed cancel keeps the run locked, re-enables Cancel, and records why until the next attempt', () => {
+    const failed = run(attached, snap(snapshot()), { type: 'cancelRequested' }, { type: 'cancelFailed', message: 'Offline.' })
+    expect(failed.phase === 'active' && [failed.cancelling, failed.cancelError]).toEqual([false, 'Offline.'])
+    expect(isEditingLocked(failed)).toBe(true)
+
+    const retry = runReducer(failed, { type: 'cancelRequested' })
+    expect(retry.phase === 'active' && retry.cancelError).toBeUndefined()
+  })
+
   test('clear returns to idle', () => {
     expect(run(attached, snap(snapshot()), { type: 'clear' })).toEqual(initialRunState)
   })

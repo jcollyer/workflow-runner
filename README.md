@@ -2,16 +2,16 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status: M4 (live run UI) complete.** Build a workflow, press Run, and watch per-node status stream onto the canvas; cancel mid-run; reload mid-run and it re-attaches. Remaining: M5 (empty/error/loading polish pass, final docs and verification) and the visual polish pass (DECISIONS #18).
+> **Status:** functionally complete (M0–M5). Build a workflow, press Run, and watch each node move through queued → running → succeeded / failed / skipped; cancel mid-run; reload mid-run and it re-attaches. Visual polish is a deliberate later pass (DECISIONS #18).
 
-| Milestone | Scope | State |
-|---|---|---|
-| M0 | Workspaces, Express server, shared package, Vitest, docs | Done |
-| M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Done |
-| M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Done |
-| M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Done |
-| M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Done |
-| M5 | Empty/error/loading states, final docs, verification | Not started |
+| Milestone | Scope |
+|---|---|
+| M0 | npm workspaces (`shared`, `server`, `web`), Express, Vitest, docs |
+| M1 | Shared contract: Zod schemas, graph validation, text transforms |
+| M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage |
+| M3 | BFF: accept workflow, simulated DAG executor, SSE, cancel |
+| M4 | Live run UI: node status, progress, run details, cancel, editing lock, re-attach |
+| M5 | Empty/loading/error gaps, separate Run/Cancel buttons, run shortcut, final docs and verification |
 
 ## Setup
 
@@ -27,154 +27,131 @@ One command per side, in two terminals:
 npm run dev:server   # Express on http://localhost:3001
 ```
 
-To demo failures more often: `FAILURE_RATE=0.5 npm run dev:server` (any value from 0 to 1; default 0.1).
-
 ```bash
 npm run dev:web      # Vite on http://localhost:5173 (proxies /api → :3001)
 ```
 
-Other scripts (from the repo root):
+Open http://localhost:5173. A first visit loads an Input → Transform → Output example; press **Run** (or ⌘/Ctrl+Enter).
+
+To see failures more often: `FAILURE_RATE=0.5 npm run dev:server` (0–1, default 0.1). `PORT` moves the server; `API_TARGET` points the Vite proxy elsewhere.
+
+From the repo root:
 
 ```bash
-npm test             # Vitest across all workspaces
+npm test             # Vitest: shared rules, executor, HTTP/SSE, client reducers
 npm run typecheck    # tsc for shared, server, web
 npm run lint         # oxlint
 ```
 
-Set `PORT` to move the server and `API_TARGET` to point the Vite proxy elsewhere.
-
 ## Repository layout
 
 ```
-shared/   @wand/shared — Zod schemas and pure logic used by both sides (consumed as TS source, no build step)
-server/   @wand/server — Express BFF, run with tsx
-web/      @wand/web    — React + Vite app
+shared/src/   @wand/shared — Zod schemas + pure logic used by both sides (consumed as TS source, no build step)
+  workflow.ts   node/edge/workflow schemas; Transform config discriminated on `operation`
+  graph.ts      canConnect() for the canvas, validateWorkflow() → issues tied to a node or edge
+  transforms.ts applyTransform(): uppercase, lowercase, normalize, literal replace
+  run.ts        run/node statuses, RunSnapshot, RunEvent, applyRunEvent()
+  api.ts        response bodies, ApiError
+server/src/   @wand/server — Express BFF (run with tsx)
+  app.ts        routes + SSE endpoint
+  execution.ts  RunExecution: simulated DAG scheduler
+  store.ts      in-memory workflows and runs
+web/src/      @wand/web — React + Vite + React Flow
+  state/        editor reducer, run reducer, useEditor, useRun, localStorage
+  api/client.ts fetch commands, responses parsed with shared schemas
+  components/   Canvas, WorkflowNodeView, Header, Palette, SidePanel, NodeSettingsPanel, …
 ```
 
 ## Architecture
 
-### Shared contract
-`@wand/shared` is the single source of truth for the API shape. Both sides import the same Zod schemas: the server validates requests with them, the client parses responses with them.
-
-| Module | Contents |
-|---|---|
-| `workflow.ts` | Node (`input` / `transform` / `output`, discriminated on `type`), edge and workflow schemas; Transform config discriminated on `operation`; size limits |
-| `graph.ts` | `canConnect()` for the canvas, `validateWorkflow()` returning `ValidationIssue`s tied to a node or edge |
-| `transforms.ts` | `applyTransform()`: uppercase, lowercase, normalize, literal replace |
-| `run.ts` | Node/run statuses, `RunSnapshot`, SSE `RunEvent` union |
-| `api.ts` | Command response bodies and the `ApiError` body |
-
-**Shape vs rules:** schemas accept anything the editor can legitimately hold (an empty name, an empty Replace `find`) so drafts always survive localStorage. Whether a workflow can *run* is decided by the rule functions, which return issues the UI can pin to a node (DECISIONS #13).
-
 ### Canvas state
-Two separate pieces of client state:
-- **Editor state** *(M2)* — `web/src/state/editor.ts`, a pure reducer holding the `Workflow` document exactly as the shared schema defines it, plus UI-only selection. The document autosaves to localStorage (validated with the schema on load; anything stale or corrupt falls back to the example) and will be sent to the server on Run. React Flow nodes are derived from the document at render time (`components/Canvas.tsx`), and React Flow change events are translated back into reducer actions, so React Flow never holds a second copy of the document.
-- **Run state** *(M4)* — `web/src/state/run.ts`, a pure reducer (`idle` → `starting` → `active`) folding the SSE stream with the shared `applyRunEvent`; `useRun.ts` owns the side effects (Run's two POSTs, one EventSource per run, cancel, reload re-attach). Ephemeral and server-owned; never written into the workflow document. Plain `useReducer`, no store library.
+Two pieces of client state, deliberately kept apart:
 
-App routes every editor action through one gate (`App.tsx`): while a run is starting or running, document changes are dropped; after a run settles, the first content edit clears its presentation (moving, selecting, pan and zoom do not).
+- **Workflow document** (`state/editor.ts`) — a pure reducer holding the `Workflow` exactly as the shared schema defines it, plus UI-only selection. It autosaves to localStorage (schema-validated on load; anything stale or corrupt falls back to the example) and is what gets sent on Run. React Flow nodes are *derived* from it at render time and React Flow's change events are translated back into reducer actions, so React Flow never holds a second copy of the document (DECISIONS #14).
+- **Run state** (`state/run.ts` + `useRun.ts`) — a pure reducer (`idle` → `starting` → `active`) that folds the SSE stream with the same `applyRunEvent` the server uses. `useRun` owns every side effect: Run's two POSTs, one EventSource per run, cancel, and reload re-attach. Run state never touches the document, so status updates can't mark it dirty or leak into what is saved or submitted.
 
-```
-web/src/
-  state/editor.ts        reducer + actions (pure, unit-tested)
-  state/storage.ts       localStorage load/save, schema-validated
-  state/useEditor.ts     wires reducer + autosave + validateWorkflow
-  components/Canvas.tsx  Workflow → React Flow mapping, change translation, connection feedback
-  components/…           Header, Palette, WorkflowNodeView, SidePanel, NodeSettingsPanel, Field
-```
+Every editor action passes through one gate in `App.tsx`: while a run is starting or running, document changes are dropped (pan, zoom and inspection still work); after a run settles, the first content edit clears its presentation — moving, selecting, pan and zoom don't count as edits (DECISIONS #11, #12, #23).
 
-Editing behaviour: settings apply to the document on every keystroke; invalid values are kept and flagged (inline, as a node badge, and in the workflow panel) rather than blocked. Invalid connections are refused while dragging and explained in a short toast. Deleting a node removes its connected edges.
+**Editing feedback.** Settings apply on every keystroke. Invalid values (an empty name, an empty Replace `find`) are kept rather than blocked, and flagged inline under the field, as a badge on the node, and in the workflow panel's "Before this can run" list. Invalid connections are refused while dragging, with a short explanation (DECISIONS #15).
 
-Keeping them apart means status updates never mark the document dirty or leak into the saved/submitted graph. Known cost: every status event re-renders all nodes; fine at demo scale, and the scale path is a per-node-subscribable external store.
-
-While a run is starting or running, graph and configuration editing is locked; pan, zoom, and inspection stay available. After a run ends, its status overlay stays visible until the first edit (DECISIONS #11).
+**Why React Flow, and how it scales.** React Flow gives pan/zoom, handles, connection dragging and edge routing for free, which is most of an editor's interaction cost; raw SVG would mean rebuilding that before reaching the interesting parts. The cost is that its node model is not ours, hence the derive-and-translate layer. At demo scale every edit re-maps all nodes and every SSE event re-renders all nodes. For hundreds of nodes I would (1) memoise the Workflow → React Flow mapping per node so untouched nodes keep identity, and (2) move run state into an external store with per-node subscriptions (`useSyncExternalStore` or Zustand), so one node's status change re-renders one node. React Flow can also skip rendering off-screen nodes via `onlyRenderVisibleElements` (not enabled here).
 
 ### Validation
-Implemented in `shared/src/graph.ts` *(M1)* and used by the canvas *(M2)*; server enforcement *(planned, M3)*.
+`shared/src/graph.ts`, used by the canvas while editing and re-checked by the server on accept (DECISIONS #10, #12):
+- **Structural** — no duplicate node/edge IDs, edges to missing nodes, self-connections, duplicate source/target pairs, edges into Input, edges out of Output (Output is terminal), a second incoming edge on a Transform/Output, or cycles.
+- **Run readiness** (only checked once the structure is valid) — every node named, every Transform/Output has an incoming edge, Replace `find` non-empty, at least one Input-to-Output path. Dead ends are allowed.
 
-- **Structural** (`canConnect` while drawing; `validateWorkflow` on the server): no duplicate node/edge IDs, edges to missing nodes, self-connections, duplicate source/target pairs, edges into Input, edges out of Output, second incoming edge on a Transform/Output, or cycles.
-- **Run readiness** (only checked once the structure is valid): every node named, every Transform/Output has an incoming edge, Replace `find` non-empty, at least one Input-to-Output path. Dead ends are allowed.
+Zod checks shape only; these rules are plain functions returning issues pinned to a node or edge, which is what lets the UI point at the problem and the server return a useful 422 (DECISIONS #13).
 
-Full rationale: DECISIONS #10 and #12.
+### Streaming: why SSE
+Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional WebSocket buys nothing here; SSE works through the Vite proxy unchanged and native `EventSource` reconnects by itself. Every connection starts with a full `snapshot`, then numbered `node` / `run` deltas (`id:` = `seq`), so a reconnect re-snapshots instead of replaying a log, and stale deltas are ignored by `seq`. A `: ping` comment every 15 s keeps idle connections alive. The server ends the stream when the run settles and the client closes its EventSource on the terminal event (DECISIONS #7, #20).
 
-### Streaming
-Server-Sent Events. Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional socket buys nothing. Every SSE connection starts with a full run `snapshot`, followed by sequenced deltas (`id:` = `seq`); reconnects (EventSource retries automatically) recover by re-snapshotting instead of replaying a log. A `: ping` comment every 15 s keeps idle connections alive. The server ends the stream once the run settles, so the client must close its EventSource on the terminal event (DECISIONS #20).
-
-### Execution model *(M3)*
-`server/src/execution.ts` — an in-memory DAG scheduler, one `RunExecution` per run:
+### BFF execution model
+`server/src/execution.ts` — one `RunExecution` per run, in memory (DECISIONS #2, #19):
 - All nodes start `queued`; a node starts when all its upstream nodes have `succeeded`, so independent branches run concurrently.
-- Each running node holds a timer (0.5–3 s). On completion it fails with ~10% probability (any node type), otherwise it computes its output: Input emits its text, Transform applies its operation to the upstream output, Output passes it through.
-- A failure marks queued descendants `skipped`; other branches continue. The run becomes `failed` (any failure) or `succeeded` only when no node is queued or running.
-- Cancel clears all timers, marks queued/running nodes `cancelled`, leaves settled nodes alone, and is a no-op on a terminal run. A completion only applies to a node that is still `running`, so late timers cannot overwrite `cancelled`.
-- Every change is a numbered `RunEvent` folded into the snapshot with the shared `applyRunEvent`, then fanned out to subscribers.
+- Each running node holds a timer (0.5–3 s). On completion it fails with ~10% probability (any node type); otherwise it computes real output: Input emits its text, Transform applies its operation to the upstream output, Output passes it through.
+- A failure marks queued descendants `skipped` (with the cause); other branches continue. The run becomes `failed` or `succeeded` only once nothing is queued or running.
+- Cancel clears all timers, marks queued/running nodes `cancelled`, leaves settled nodes alone, and is a no-op on a terminal run. Completions only apply to a node still `running`, so late timers cannot overwrite `cancelled`.
+- Every change is a numbered `RunEvent` folded into the snapshot with the shared `applyRunEvent`, then fanned out to SSE subscribers.
 
-Accepted workflows are stored as immutable copies, so edits in the browser never affect a run in flight. Full rules: DECISIONS #2, #19.
+Accepted workflows are stored as immutable copies, so edits in the browser can never affect a run in flight. Timing and failure are injectable, so tests choose which nodes fail rather than seeding `Math.random`.
 
-### Run experience *(M4)*
-- **Header:** Run (disabled with a reason while the workflow has issues) becomes Cancel run while a run is in flight. The status pill shows **Pending** until the run is accepted and its first snapshot arrives (Cancel disabled — there is no run ID yet), then `Running · 2 of 5 completed`, then the final status.
-- **Canvas:** each node's border and status line carry its state (queued dimmed, running pulsing blue, succeeded green, failed red with the reason, skipped dashed with the upstream cause, cancelled dimmed), plus duration and output text; edges animate while their target runs.
-- **Side panel:** with nothing selected, Run details shows connection state, run ID, start time, elapsed time and per-status counts. Selecting a node during a run shows its status, output or error, with settings read-only.
+### Run experience
+- **Header:** Cancel and Run sit side by side in fixed positions, so a late click on Cancel can never land on Run (DECISIONS #24). Run is disabled while a run is in flight or the workflow has issues (with the reason as a tooltip); Cancel is enabled only while a run is in flight. The status pill shows **Pending** until the run is accepted and its first snapshot arrives (Cancel stays disabled then — there is no run ID yet), then `Running · 2 of 5 completed`, then the outcome.
+- **Canvas:** each node's border and status line carry its state — queued dimmed, running pulsing blue, succeeded green, failed red with the reason, skipped dashed with the upstream cause, cancelled dimmed — plus duration and output text. Edges animate while their target runs.
+- **Side panel:** with nothing selected, Run details shows connection state, run ID, start time, elapsed time and per-status counts. Selecting a node during a run shows its status and output or error, with settings read-only.
 
 ### Handling the ugly parts
 | Situation | Behaviour |
 |---|---|
-| **Cancel mid-flight** | Server clears timers and marks queued/running nodes `cancelled`; settled nodes keep their state; late timers cannot overwrite (DECISIONS #2, #19). The cancel response is the current snapshot, applied unless the stream is already ahead. |
+| **Cancel mid-flight** | Server clears timers and marks queued/running nodes `cancelled`; settled nodes keep their state; late timers cannot overwrite. The cancel response is the current snapshot, applied unless the stream is already ahead. A failed cancel request is shown in Run details and Cancel re-enables. |
 | **A node fails while others run** | Its descendants become `skipped` with the cause; independent branches keep running; the run turns `failed` only once nothing is queued or running. |
 | **Network blip** | EventSource reconnects by itself; the server sends a fresh snapshot first, so missed events don't matter. The pill and Run details show "reconnecting". |
-| **Tab reload mid-run** | The run ID lives in `sessionStorage`; on load the client re-attaches to `/events` and gets the current snapshot (DECISIONS #22). |
+| **Tab reload mid-run** | The run ID lives in `sessionStorage`; on load the client re-attaches to `/events` and receives the current snapshot (DECISIONS #22). |
 | **Run no longer exists** (server restarted) | The stream fails permanently → marked lost; editing unlocks with an explanation instead of staying stuck. |
 | **Start fails** (server down, 422) | Banner on the canvas with the reason and any issues; editing stays unlocked. |
 
-## API contract *(M3)*
+## API contract
 
-All routes are mounted under `/api`.
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/health` | Liveness check |
-| `POST` | `/api/workflows` | Validate and accept a graph snapshot |
-| `POST` | `/api/workflows/:id/runs` | Start execution; returns a run ID |
-| `GET` | `/api/runs/:id` | Latest run snapshot |
-| `GET` | `/api/runs/:id/events` | SSE subscription |
-| `POST` | `/api/runs/:id/cancel` | Cancel; returns the current snapshot |
-
-Bodies (Zod schemas in `shared/src`):
+All routes are under `/api`; bodies are Zod schemas in `shared/src`.
 
 | Route | Request | Success | Errors |
 |---|---|---|---|
-| `POST /api/workflows` | `Workflow` | `201 { workflowId }` | `400 bad_request` (shape), `422 invalid_workflow` + `issues[]` |
-| `POST /api/workflows/:id/runs` | — | `202 { runId }` | `404 not_found` |
-| `GET /api/runs/:id` | — | `200 RunSnapshot` | `404 not_found` |
-| `GET /api/runs/:id/events` | — | `text/event-stream` of `RunEvent` | `404 not_found` |
-| `POST /api/runs/:id/cancel` | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
+| `GET /api/health` | — | `200 { ok, service }` | — |
+| `POST /api/workflows` — validate and accept a graph snapshot | `Workflow` | `201 { workflowId }` | `400 bad_request` (shape), `422 invalid_workflow` + `issues[]` |
+| `POST /api/workflows/:id/runs` — start execution | — | `202 { runId }` | `404 not_found` |
+| `GET /api/runs/:id` — latest snapshot | — | `200 RunSnapshot` | `404 not_found` |
+| `GET /api/runs/:id/events` — SSE subscription | — | `text/event-stream` of `RunEvent` | `404 not_found` |
+| `POST /api/runs/:id/cancel` — cancel | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
 
-Every error body is `ApiError { error, message, issues? }` — including malformed JSON (400) and unknown `/api` routes (404). Each SSE connection receives a `snapshot` event first, then `node` / `run` deltas with increasing `seq`; clients drop deltas with `seq` ≤ the snapshot's.
+Every error body is `ApiError { error, message, issues? }`, including malformed JSON (400), unknown `/api` routes (404) and unexpected failures (500 `internal`).
 
 ## Decisions & cuts
 
-See [DECISIONS.md](DECISIONS.md) for the chronological log.
+Chronological log with owner and trade-off for each: [DECISIONS.md](DECISIONS.md). How the agent was used: [AI_NOTES.md](AI_NOTES.md).
 
-**Cut so far:**
-- Drag-from-palette: clicking a palette entry adds the node at the viewport centre instead.
+**Where the polish line is.** Effort went into what makes a run legible at a glance and the editor hard to break: per-node status on the canvas, live counts, Pending state, validation feedback in three places, explained connection refusals, the editing lock, Run/Cancel in fixed positions, and the reconnect paths. Visual design (typography, colour system, spacing, motion) is deliberately plain; it is a separate hand-done pass after functionality (DECISIONS #18).
+
+**Cut:**
+- Drag-from-palette — clicking a palette entry adds the node at the viewport centre.
 - Minimap, renaming the workflow, undo/redo, multi-select.
+- A server production build — the server runs via `tsx` only (no deployment in scope).
 
-Page-reload re-attach, originally a cut candidate, was implemented (DECISIONS #22).
+Page-reload re-attach started as a cut candidate and was implemented once snapshot-on-connect made it ~10 lines (DECISIONS #22).
 
 ## Known limitations
 
-- No database: workflows and runs live in server memory and vanish on restart (by design).
-- No production build/start script for the server; it runs via `tsx` only.
+- No database: workflows and runs live in server memory, are never evicted, and vanish on restart; in-flight runs are lost with the process.
+- Every edit re-maps all nodes and every SSE event re-renders all nodes — fine for demo-sized graphs, not tuned for hundreds (see "Why React Flow, and how it scales").
 - New nodes can land on top of existing ones (placed at the viewport centre with a small cascade).
-- Every edit re-maps all nodes for React Flow; fine for demo-sized graphs, not tuned for hundreds of nodes (DECISIONS #14).
 - localStorage holds one workflow; there is no workflow list.
-- Accepted workflows and runs are never evicted from server memory.
-- Runs live in process timers: restarting the server loses in-flight runs, and an open EventSource will then get 404s on reconnect.
+- Elapsed time compares the server's `startedAt` with the browser clock — fine on one machine; a remote deployment would need server-relative time.
+- The production web bundle is a single 521 kB chunk (159 kB gzipped: React, React Flow, Zod); no code splitting.
+- Not exercised by hand: a real network drop mid-run (the EventSource reconnect path is implemented and the snapshot logic is unit-tested, but only simulated in the browser).
 
-- **Run/Cancel share one button position.** If a run settles just as you click Cancel, the button has already become Run and the click starts a new run (observed during verification). Not yet fixed; the fix is a UX decision still open.
-- Every SSE event re-renders all nodes (run state is one reducer, DECISIONS #4).
-- Elapsed time compares the server's `startedAt` with the browser clock; fine on one machine, would need server time for remote deployment.
+## With another week
 
-## Next steps
-
-M5 — empty/error/loading pass, final docs and verification.
-
-Beyond the timebox: durable execution (persisted run log + job queue instead of in-process timers), TTL eviction for runs, a concurrency limit per run.
+- **Durable execution:** persist the run event log (it is already the source of truth for snapshots) and drive nodes from a job queue instead of in-process timers, so runs survive restarts and can resume; retries per node.
+- **Scale to 500-node workflows:** per-node memoised mapping and per-node run-state subscriptions (above); batch SSE deltas per animation frame; a concurrency limit per run on the server.
+- **Multiplayer editing:** the document is already a single serialisable value changed by discrete actions, which is the shape a CRDT (e.g. Yjs) or server-ordered operation log needs; selection is already separate, per-user state.
+- Run history per workflow, undo/redo (the reducer makes this a history stack), drag-from-palette, and the visual polish pass.

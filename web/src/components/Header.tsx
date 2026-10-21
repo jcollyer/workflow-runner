@@ -50,6 +50,13 @@ function StatusPill({ run, saveStatus }: { run: RunState; saveStatus: SaveStatus
 export function Header({ workflowName, saveStatus, run, issueCount, onRun, onCancel }: HeaderProps) {
   const inFlight = isEditingLocked(run)
   const cancelling = run.phase === 'active' && run.cancelling
+  // No run ID exists while starting, so Cancel stays disabled until the run is accepted (DECISIONS #12).
+  const canCancel = inFlight && run.phase === 'active' && !cancelling
+  const runBlockedReason = inFlight
+    ? 'A run is in progress'
+    : issueCount > 0
+      ? `Fix ${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} before running`
+      : undefined
 
   return (
     <header className="header">
@@ -59,28 +66,14 @@ export function Header({ workflowName, saveStatus, run, issueCount, onRun, onCan
       <span className="header__divider" aria-hidden="true" />
       <StatusPill run={run} saveStatus={saveStatus} />
 
+      {/* Separate, fixed positions: a late click on Cancel can never land on Run (DECISIONS #24). */}
       <div className="header__actions">
-        {inFlight ? (
-          // No run ID exists while starting, so Cancel stays disabled until the run is accepted (DECISIONS #12).
-          <button
-            type="button"
-            className="button button--danger"
-            disabled={run.phase === 'starting' || cancelling}
-            onClick={onCancel}
-          >
-            {cancelling ? 'Cancelling…' : 'Cancel run'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="button"
-            disabled={issueCount > 0}
-            title={issueCount > 0 ? `Fix ${issueCount} ${issueCount === 1 ? 'issue' : 'issues'} before running` : undefined}
-            onClick={onRun}
-          >
-            Run
-          </button>
-        )}
+        <button type="button" className="button button--danger" disabled={!canCancel} onClick={onCancel}>
+          {cancelling ? 'Cancelling…' : 'Cancel'}
+        </button>
+        <button type="button" className="button" disabled={runBlockedReason !== undefined} title={runBlockedReason} onClick={onRun}>
+          Run
+        </button>
       </div>
     </header>
   )

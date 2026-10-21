@@ -159,3 +159,16 @@ The active run ID is kept in `sessionStorage` (per tab) and cleared when the run
 **Owner:** agent · **When:** M4
 
 App wraps the editor's `dispatch`: while locked, any document change (including moves) is dropped; otherwise the first content edit after a presented run (or a failed start) clears it. The canvas, palette and panel also disable their controls, but the gate is what guarantees #11 and #12 regardless of which control fired.
+
+### 24. Run and Cancel are separate buttons in fixed positions
+**Owner:** human · **When:** M5
+
+During M4 verification, Run and Cancel shared one position: a run settled just before a click on Cancel landed, so the click started a new run. The agent first fixed this with a timed hold (button disabled for 1 s after a run settled, showing the outcome), which needed extra state and a timer effect. Jeremy rejected that as complexity for its own sake and chose a layout fix: Cancel sits beside Run, and each is enabled by the existing rules. Run is disabled while a run is in flight or the workflow has issues; Cancel only while a run is in flight with a run ID and no cancel already pending. A late click on Cancel now lands on a disabled Cancel, never on Run.
+**Trade-off:** one more always-visible (usually disabled) button in the header, in exchange for no timing logic at all.
+
+### 25. M5 gap fixes
+**Owner:** agent · **When:** M5
+
+- A failed cancel request is shown in Run details ("Couldn't cancel: … try again") and Cancel re-enables; previously it failed silently.
+- Run details shows "Waiting for the first update from the server…" until the first snapshot.
+- ⌘/Ctrl+Enter runs the workflow when it is runnable.
