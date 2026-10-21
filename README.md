@@ -2,7 +2,7 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status: M3 (BFF) complete.** You can build, edit and validate a workflow in the browser, and the server can accept, run, stream and cancel workflows (verified with tests and curl). The UI is **not wired to the server yet** — there is no Run button until M4. Sections marked *(planned)* describe the agreed design, not working behavior.
+> **Status: M4 (live run UI) complete.** Build a workflow, press Run, and watch per-node status stream onto the canvas; cancel mid-run; reload mid-run and it re-attaches. Remaining: M5 (empty/error/loading polish pass, final docs and verification) and the visual polish pass (DECISIONS #18).
 
 | Milestone | Scope | State |
 |---|---|---|
@@ -10,7 +10,7 @@ A mini workflow canvas: compose a graph of text-processing steps, run it on a si
 | M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Done |
 | M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Done |
 | M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Done |
-| M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Not started |
+| M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Done |
 | M5 | Empty/error/loading states, final docs, verification | Not started |
 
 ## Setup
@@ -69,7 +69,9 @@ web/      @wand/web    — React + Vite app
 ### Canvas state
 Two separate pieces of client state:
 - **Editor state** *(M2)* — `web/src/state/editor.ts`, a pure reducer holding the `Workflow` document exactly as the shared schema defines it, plus UI-only selection. The document autosaves to localStorage (validated with the schema on load; anything stale or corrupt falls back to the example) and will be sent to the server on Run. React Flow nodes are derived from the document at render time (`components/Canvas.tsx`), and React Flow change events are translated back into reducer actions, so React Flow never holds a second copy of the document.
-- **Run state** *(planned, M4)* — per-node status from the server stream. Ephemeral, server-owned, replaced wholesale on each SSE snapshot. Plain `useReducer`, no store library.
+- **Run state** *(M4)* — `web/src/state/run.ts`, a pure reducer (`idle` → `starting` → `active`) folding the SSE stream with the shared `applyRunEvent`; `useRun.ts` owns the side effects (Run's two POSTs, one EventSource per run, cancel, reload re-attach). Ephemeral and server-owned; never written into the workflow document. Plain `useReducer`, no store library.
+
+App routes every editor action through one gate (`App.tsx`): while a run is starting or running, document changes are dropped; after a run settles, the first content edit clears its presentation (moving, selecting, pan and zoom do not).
 
 ```
 web/src/
@@ -94,7 +96,7 @@ Implemented in `shared/src/graph.ts` *(M1)* and used by the canvas *(M2)*; serve
 
 Full rationale: DECISIONS #10 and #12.
 
-### Streaming *(M3 server; client planned, M4)*
+### Streaming
 Server-Sent Events. Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional socket buys nothing. Every SSE connection starts with a full run `snapshot`, followed by sequenced deltas (`id:` = `seq`); reconnects (EventSource retries automatically) recover by re-snapshotting instead of replaying a log. A `: ping` comment every 15 s keeps idle connections alive. The server ends the stream once the run settles, so the client must close its EventSource on the terminal event (DECISIONS #20).
 
 ### Execution model *(M3)*
@@ -106,6 +108,21 @@ Server-Sent Events. Progress is one-way (server → client) and commands are pla
 - Every change is a numbered `RunEvent` folded into the snapshot with the shared `applyRunEvent`, then fanned out to subscribers.
 
 Accepted workflows are stored as immutable copies, so edits in the browser never affect a run in flight. Full rules: DECISIONS #2, #19.
+
+### Run experience *(M4)*
+- **Header:** Run (disabled with a reason while the workflow has issues) becomes Cancel run while a run is in flight. The status pill shows **Pending** until the run is accepted and its first snapshot arrives (Cancel disabled — there is no run ID yet), then `Running · 2 of 5 completed`, then the final status.
+- **Canvas:** each node's border and status line carry its state (queued dimmed, running pulsing blue, succeeded green, failed red with the reason, skipped dashed with the upstream cause, cancelled dimmed), plus duration and output text; edges animate while their target runs.
+- **Side panel:** with nothing selected, Run details shows connection state, run ID, start time, elapsed time and per-status counts. Selecting a node during a run shows its status, output or error, with settings read-only.
+
+### Handling the ugly parts
+| Situation | Behaviour |
+|---|---|
+| **Cancel mid-flight** | Server clears timers and marks queued/running nodes `cancelled`; settled nodes keep their state; late timers cannot overwrite (DECISIONS #2, #19). The cancel response is the current snapshot, applied unless the stream is already ahead. |
+| **A node fails while others run** | Its descendants become `skipped` with the cause; independent branches keep running; the run turns `failed` only once nothing is queued or running. |
+| **Network blip** | EventSource reconnects by itself; the server sends a fresh snapshot first, so missed events don't matter. The pill and Run details show "reconnecting". |
+| **Tab reload mid-run** | The run ID lives in `sessionStorage`; on load the client re-attaches to `/events` and gets the current snapshot (DECISIONS #22). |
+| **Run no longer exists** (server restarted) | The stream fails permanently → marked lost; editing unlocks with an explanation instead of staying stuck. |
+| **Start fails** (server down, 422) | Banner on the canvas with the reason and any issues; editing stays unlocked. |
 
 ## API contract *(M3)*
 
@@ -140,7 +157,7 @@ See [DECISIONS.md](DECISIONS.md) for the chronological log.
 - Drag-from-palette: clicking a palette entry adds the node at the viewport centre instead.
 - Minimap, renaming the workflow, undo/redo, multi-select.
 
-**Cut candidates if time runs short:** page-reload re-attach to a running run.
+Page-reload re-attach, originally a cut candidate, was implemented (DECISIONS #22).
 
 ## Known limitations
 
@@ -152,8 +169,12 @@ See [DECISIONS.md](DECISIONS.md) for the chronological log.
 - Accepted workflows and runs are never evicted from server memory.
 - Runs live in process timers: restarting the server loses in-flight runs, and an open EventSource will then get 404s on reconnect.
 
+- **Run/Cancel share one button position.** If a run settles just as you click Cancel, the button has already become Run and the click starts a new run (observed during verification). Not yet fixed; the fix is a UX decision still open.
+- Every SSE event re-renders all nodes (run state is one reducer, DECISIONS #4).
+- Elapsed time compares the server's `startedAt` with the browser clock; fine on one machine, would need server time for remote deployment.
+
 ## Next steps
 
-M4 — live run UI: Run/Cancel, Pending state, node status on the canvas, run details, editing lock, reconnect.
+M5 — empty/error/loading pass, final docs and verification.
 
 Beyond the timebox: durable execution (persisted run log + job queue instead of in-process timers), TTL eviction for runs, a concurrency limit per run.

@@ -446,3 +446,296 @@ kbd {
   border: 1px solid var(--border-strong);
   border-radius: 4px;
 }
+
+/* ---------- Run presentation ---------- */
+
+:root {
+  --status-queued: #7a828c;
+  --status-running: var(--accent);
+  --status-succeeded: var(--success);
+  --status-failed: var(--danger);
+  --status-skipped: #9a7b4f;
+  --status-cancelled: #7a828c;
+}
+
+.status--queued { --status-color: var(--status-queued); }
+.status--running { --status-color: var(--status-running); }
+.status--succeeded { --status-color: var(--status-succeeded); }
+.status--failed { --status-color: var(--status-failed); }
+.status--skipped { --status-color: var(--status-skipped); }
+.status--cancelled { --status-color: var(--status-cancelled); }
+
+.status-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-color, var(--border-strong));
+}
+
+.status--running .status-dot,
+.pill--pending .pill__dot,
+.pill--run-running .pill__dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.35; }
+}
+
+.header__actions {
+  margin-left: auto;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button--danger {
+  background: var(--danger);
+}
+
+.pill__detail {
+  color: var(--muted);
+}
+
+.pill--pending .pill__dot,
+.pill--run-running .pill__dot { background: var(--status-running); }
+.pill--pending,
+.pill--run-running { color: var(--status-running); }
+.pill--run-succeeded { color: var(--status-succeeded); }
+.pill--run-succeeded .pill__dot { background: var(--status-succeeded); }
+.pill--run-failed,
+.pill--run-lost { color: var(--status-failed); }
+.pill--run-failed .pill__dot,
+.pill--run-lost .pill__dot { background: var(--status-failed); }
+.pill--run-cancelled .pill__dot { background: var(--status-cancelled); }
+
+/* Nodes during a run: the border carries the status so it reads at a glance. */
+.wf-node[class*='run--'] {
+  transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.wf-node.run--queued,
+.wf-node.run--skipped,
+.wf-node.run--cancelled {
+  opacity: 0.7;
+}
+
+.wf-node.run--running {
+  border-color: var(--status-running);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.wf-node.run--succeeded {
+  border-color: var(--status-succeeded);
+}
+
+.wf-node.run--failed {
+  border-color: var(--status-failed);
+  box-shadow: 0 0 0 3px rgb(198 40 40 / 0.15);
+}
+
+.wf-node.run--skipped {
+  border-style: dashed;
+}
+
+.wf-node__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--status-color);
+}
+
+.wf-node__duration {
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.wf-node__output {
+  margin-top: 4px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-node__output.is-result {
+  padding: 4px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+.wf-node__error {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--status-color, var(--danger));
+}
+
+.react-flow__edge.edge--succeeded .react-flow__edge-path {
+  stroke: var(--status-succeeded);
+}
+
+.react-flow__edge.edge--running .react-flow__edge-path {
+  stroke: var(--status-running);
+  stroke-width: 2;
+}
+
+.react-flow__edge.edge--skipped .react-flow__edge-path,
+.react-flow__edge.edge--cancelled .react-flow__edge-path {
+  stroke-dasharray: 4 4;
+}
+
+/* ---------- Locked editing & run panels ---------- */
+
+.palette__item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.palette__item:disabled:hover {
+  border-color: var(--border-strong);
+}
+
+.palette__locked {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.panel__fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.callout--info {
+  color: var(--accent);
+  background: rgb(47 111 222 / 0.08);
+  border: 1px solid rgb(47 111 222 / 0.25);
+}
+
+.run-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.run-section .panel__subtitle {
+  margin-top: 12px;
+}
+
+.run-section__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--status-color);
+}
+
+.run-section__output {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow: auto;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.run-section__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--status-color);
+}
+
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-weight: 500;
+}
+
+.connection--open { --status-color: var(--success); color: var(--success); }
+.connection--connecting,
+.connection--reconnecting { --status-color: var(--warning); color: var(--warning); }
+.connection--closed { --status-color: var(--border-strong); color: var(--muted); }
+.connection--lost { --status-color: var(--danger); color: var(--danger); }
+
+.connection--connecting .status-dot,
+.connection--reconnecting .status-dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.details dt {
+  color: var(--muted);
+}
+
+.details dd {
+  margin: 0;
+}
+
+.details__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.details--counts {
+  border-bottom: none;
+}
+
+.details__row {
+  display: contents;
+}
+
+.details__row dd {
+  font-weight: 600;
+  color: var(--status-color, var(--text));
+}
+
+.canvas__banner {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: min(560px, 90%);
+  padding: 10px 12px 10px 16px;
+  color: var(--danger);
+  background: #fdecec;
+  border: 1px solid #f3b6b6;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.canvas__banner ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}

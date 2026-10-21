@@ -35,6 +35,19 @@ export type EditorAction =
   | { type: 'unselect'; kind: 'node' | 'edge'; id: string }
   | { type: 'replaceWorkflow'; workflow: Workflow }
 
+/**
+ * Edits to the workflow's content. The first one after a finished run clears its
+ * presentation (DECISIONS #11); moving, selecting, panning and zooming do not (#12).
+ */
+export function isContentEdit(action: EditorAction): boolean {
+  return !['moveNode', 'select', 'unselect'].includes(action.type)
+}
+
+/** Anything that changes the document, including position; blocked while editing is locked. */
+export function isDocumentChange(action: EditorAction): boolean {
+  return action.type !== 'select' && action.type !== 'unselect'
+}
+
 export const OPERATION_LABELS: Record<TransformOperation, string> = {
   uppercase: 'Uppercase',
   lowercase: 'Lowercase',

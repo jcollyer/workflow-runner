@@ -4,6 +4,7 @@ import {
   TransformOperation,
   describeTransform,
   type IssueCode,
+  type NodeRunState,
   type TransformConfig,
   type ValidationIssue,
   type WorkflowNode,
@@ -11,16 +12,20 @@ import {
 import { OPERATION_LABELS, configForOperation, type EditorAction } from '../state/editor.ts'
 import { Field } from './Field.tsx'
 import { TYPE_LABELS } from './flowTypes.ts'
+import { NODE_STATUS_LABELS, nodeDuration } from './runLabels.ts'
 
 interface NodeSettingsPanelProps {
   node: WorkflowNode
   issues: ValidationIssue[]
   dispatch: Dispatch<EditorAction>
+  /** Read-only while a run is starting or running; inspection stays available (DECISIONS #11). */
+  locked: boolean
+  run?: NodeRunState
 }
 
 // Every field writes straight to the workflow on change; invalid values are kept and
 // flagged inline rather than blocked (DECISIONS #13).
-export function NodeSettingsPanel({ node, issues, dispatch }: NodeSettingsPanelProps) {
+export function NodeSettingsPanel({ node, issues, dispatch, locked, run }: NodeSettingsPanelProps) {
   const has = (code: IssueCode) => issues.some((issue) => issue.code === code)
 
   return (
@@ -38,80 +43,107 @@ export function NodeSettingsPanel({ node, issues, dispatch }: NodeSettingsPanelP
       </header>
 
       <div className="panel__body">
-        {has('no_incoming') && (
-          <p className="callout callout--warning">
-            Not connected. Drag from another node’s right handle to this node’s left handle.
-          </p>
-        )}
+        {locked && <p className="callout callout--info">Editing is locked during execution.</p>}
+        {run && <NodeRunSection run={run} />}
 
-        <Field label="Name" error={has('empty_name') ? 'A name is required to run.' : undefined}>
-          {(control) => (
-            <input
-              {...control}
-              type="text"
-              value={node.name}
-              maxLength={LIMITS.nameLength}
-              onChange={(e) => dispatch({ type: 'renameNode', id: node.id, name: e.target.value })}
-            />
+        <fieldset className="panel__fieldset" disabled={locked}>
+          {has('no_incoming') && (
+            <p className="callout callout--warning">
+              Not connected. Drag from another node’s right handle to this node’s left handle.
+            </p>
           )}
-        </Field>
 
-        {node.type === 'input' && (
-          <Field label="Text" hint={`${node.config.text.length.toLocaleString()} / ${LIMITS.textLength.toLocaleString()} characters`}>
+          <Field label="Name" error={has('empty_name') ? 'A name is required to run.' : undefined}>
             {(control) => (
-              <textarea
+              <input
                 {...control}
-                rows={6}
-                value={node.config.text}
-                maxLength={LIMITS.textLength}
-                placeholder="Text to send through the workflow"
-                onChange={(e) => dispatch({ type: 'setInputText', id: node.id, text: e.target.value })}
+                type="text"
+                value={node.name}
+                maxLength={LIMITS.nameLength}
+                onChange={(e) => dispatch({ type: 'renameNode', id: node.id, name: e.target.value })}
               />
             )}
           </Field>
-        )}
 
-        {node.type === 'transform' && (
-          <>
-            <Field label="Operation" hint={describeTransform(node.config)}>
+          {node.type === 'input' && (
+            <Field label="Text" hint={`${node.config.text.length.toLocaleString()} / ${LIMITS.textLength.toLocaleString()} characters`}>
               {(control) => (
-                <select
+                <textarea
                   {...control}
-                  value={node.config.operation}
-                  onChange={(e) =>
-                    dispatch({
-                      type: 'setTransformConfig',
-                      id: node.id,
-                      config: configForOperation(TransformOperation.parse(e.target.value), node.config),
-                    })
-                  }
-                >
-                  {TransformOperation.options.map((operation) => (
-                    <option key={operation} value={operation}>
-                      {OPERATION_LABELS[operation]}
-                    </option>
-                  ))}
-                </select>
+                  rows={6}
+                  value={node.config.text}
+                  maxLength={LIMITS.textLength}
+                  placeholder="Text to send through the workflow"
+                  onChange={(e) => dispatch({ type: 'setInputText', id: node.id, text: e.target.value })}
+                />
               )}
             </Field>
+          )}
 
-            {node.config.operation === 'replace' && (
-              <ReplaceFields node={node} config={node.config} findMissing={has('empty_find')} dispatch={dispatch} />
-            )}
-          </>
-        )}
+          {node.type === 'transform' && (
+            <>
+              <Field label="Operation" hint={describeTransform(node.config)}>
+                {(control) => (
+                  <select
+                    {...control}
+                    value={node.config.operation}
+                    onChange={(e) =>
+                      dispatch({
+                        type: 'setTransformConfig',
+                        id: node.id,
+                        config: configForOperation(TransformOperation.parse(e.target.value), node.config),
+                      })
+                    }
+                  >
+                    {TransformOperation.options.map((operation) => (
+                      <option key={operation} value={operation}>
+                        {OPERATION_LABELS[operation]}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
 
-        {node.type === 'output' && (
-          <p className="muted">This node shows the text it receives once the workflow runs.</p>
-        )}
+              {node.config.operation === 'replace' && (
+                <ReplaceFields node={node} config={node.config} findMissing={has('empty_find')} dispatch={dispatch} />
+              )}
+            </>
+          )}
+
+          {node.type === 'output' && (
+            <p className="muted">This node shows the text it receives once the workflow runs.</p>
+          )}
+        </fieldset>
       </div>
 
-      <footer className="panel__footer">
-        <button type="button" className="danger-link" onClick={() => dispatch({ type: 'removeNode', id: node.id })}>
-          Delete node
-        </button>
-      </footer>
+      {!locked && (
+        <footer className="panel__footer">
+          <button type="button" className="danger-link" onClick={() => dispatch({ type: 'removeNode', id: node.id })}>
+            Delete node
+          </button>
+        </footer>
+      )}
     </aside>
+  )
+}
+
+function NodeRunSection({ run }: { run: NodeRunState }) {
+  const duration = nodeDuration(run)
+  return (
+    <section className="run-section" aria-label="Run result">
+      <div className={`run-section__status status--${run.status}`}>
+        <span className="status-dot" aria-hidden="true" />
+        {NODE_STATUS_LABELS[run.status]}
+        {duration && <span className="muted"> · {duration}</span>}
+      </div>
+      {run.output !== undefined && (
+        <>
+          <h3 className="panel__subtitle">Output</h3>
+          <pre className="run-section__output">{run.output === '' ? '(empty text)' : run.output}</pre>
+        </>
+      )}
+      {run.error && <p className="run-section__error">{run.error}</p>}
+    </section>
   )
 }
 

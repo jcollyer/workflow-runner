@@ -12,7 +12,7 @@ import {
   type NodeTypes,
   type OnConnectEnd,
 } from '@xyflow/react'
-import { canConnect, type Workflow } from '@wand/shared'
+import { canConnect, type NodeRunState, type Workflow } from '@wand/shared'
 import type { EditorAction, Selection } from '../state/editor.ts'
 import type { WorkflowIssues } from '../state/useEditor.ts'
 import type { FlowNode } from './flowTypes.ts'
@@ -28,9 +28,15 @@ interface CanvasProps {
   issues: WorkflowIssues
   dispatch: Dispatch<EditorAction>
   onStartFromExample: () => void
+  /** Graph editing is locked while a run is starting or running; pan, zoom and selection stay available. */
+  locked: boolean
+  /** Per-node run state while a run is presented. */
+  runNodes?: Record<string, NodeRunState>
 }
 
-export function Canvas({ workflow, selection, issues, dispatch, onStartFromExample }: CanvasProps) {
+const DELETE_KEYS = ['Backspace', 'Delete']
+
+export function Canvas({ workflow, selection, issues, dispatch, onStartFromExample, locked, runNodes }: CanvasProps) {
   // React Flow rebuilds a node's internals whenever the node object changes, and it only
   // keeps measured size if we pass it back. Nodes are rebuilt from the workflow on every
   // change, so we hold their measured sizes here (UI-only, never persisted).
@@ -49,20 +55,26 @@ export function Canvas({ workflow, selection, issues, dispatch, onStartFromExamp
         id: node.id,
         type: 'workflow',
         position: node.position,
-        data: { node, issues: issues.byNode.get(node.id) ?? [] },
+        data: { node, issues: issues.byNode.get(node.id) ?? [], run: runNodes?.[node.id] },
         selected: selection?.kind === 'node' && selection.id === node.id,
         measured: measured[node.id],
       })),
-    [workflow.nodes, issues, selection, measured],
+    [workflow.nodes, issues, selection, measured, runNodes],
   )
 
   const edges = useMemo<Edge[]>(
     () =>
-      workflow.edges.map((edge) => ({
-        ...edge,
-        selected: selection?.kind === 'edge' && selection.id === edge.id,
-      })),
-    [workflow.edges, selection],
+      workflow.edges.map((edge) => {
+        // An edge "carries" data into its target: animate it while the target runs.
+        const targetStatus = runNodes?.[edge.target]?.status
+        return {
+          ...edge,
+          selected: selection?.kind === 'edge' && selection.id === edge.id,
+          animated: targetStatus === 'running',
+          className: targetStatus ? `edge--${targetStatus}` : undefined,
+        }
+      }),
+    [workflow.edges, selection, runNodes],
   )
 
   const onNodesChange = useCallback(
@@ -144,7 +156,10 @@ export function Canvas({ workflow, selection, issues, dispatch, onStartFromExamp
         onConnect={onConnect}
         onConnectEnd={onConnectEnd}
         isValidConnection={isValidConnection}
-        deleteKeyCode={['Backspace', 'Delete']}
+        nodesDraggable={!locked}
+        nodesConnectable={!locked}
+        edgesReconnectable={false}
+        deleteKeyCode={locked ? null : DELETE_KEYS}
         multiSelectionKeyCode={null}
         selectionKeyCode={null}
         fitView

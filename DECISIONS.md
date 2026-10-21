@@ -142,3 +142,20 @@ Jeremy will polish look and feel after run execution works end to end; until the
 
 The server writes the terminal `run` event (or, for an already-terminal run, just the snapshot) and closes the response, so finished runs hold no connections or heartbeats. Clients must close their `EventSource` on a terminal event; otherwise it auto-reconnects and receives the final snapshot again.
 **Trade-off:** correctness of "stop listening" depends on the client honouring this; a misbehaving client costs one snapshot per retry interval, not a leak.
+
+### 21. Client run state: pure reducer + one hook owning side effects
+**Owner:** agent (within human's #4) · **When:** M4
+
+`web/src/state/run.ts` is a pure reducer with phases `idle` → `starting` → `active` (snapshot `null` until the first SSE frame). It folds the stream with the shared `applyRunEvent`. `useRun` owns every side effect: the two POSTs on Run, one `EventSource` per run ID (closed on the terminal event, per #20), and cancel. Derived rules live as pure functions next to the reducer: `isEditingLocked`, `isPending`, `isRunSettled`.
+- The cancel response is applied only if its `seq` is not behind what the stream has already delivered.
+- A stream the browser gives up on (`EventSource` CLOSED, e.g. 404 after a server restart) becomes `lost`, which **unlocks** editing and explains itself, so a vanished run cannot leave the editor stuck.
+
+### 22. Reload re-attaches to the in-flight run
+**Owner:** agent · **When:** M4
+
+The active run ID is kept in `sessionStorage` (per tab) and cleared when the run settles or is lost. On load, the client attaches straight to `/events`; since every connection starts with a snapshot, this is the same code path as a first connect. Moved from the cut list because it cost ~10 lines on top of #7.
+
+### 23. One gate for editor actions
+**Owner:** agent · **When:** M4
+
+App wraps the editor's `dispatch`: while locked, any document change (including moves) is dropped; otherwise the first content edit after a presented run (or a failed start) clears it. The canvas, palette and panel also disable their controls, but the gate is what guarantees #11 and #12 regardless of which control fired.
