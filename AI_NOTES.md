@@ -45,6 +45,20 @@ Answered the agent's open questions. Lightly edited:
 > - GET /runs/:id/events: SSE subscription.
 > - POST /runs/:id/cancel: cancel and return the current snapshot.
 
+### Prompt 3 — Validation rules and run-time editing lock (after M0)
+Confirmed the agent's proposed validation rules and extended them. Lightly edited:
+
+> Your validation rules look good. I would also include:
+> - Output is a terminal step.
+> - Nodes have editable names and positions.
+> - No self-connections, duplicate source/target pairs, cycles, edges into Input, edges out of Output, or references to missing nodes.
+> - Require at least one Input-to-Output path.
+>
+> Further state requirements I would like to define include:
+> - Lock graph and configuration editing while starting or running.
+> - Allow pan, zoom, and inspection during execution.
+> - Clear old execution presentation on the first edit after a terminal run.
+
 ## 2. Where the agent was wrong or mediocre
 
 ✏️ *No corrections recorded yet. Add concrete cases as they happen: what the agent produced, what you changed, and why.*
@@ -57,5 +71,7 @@ Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISI
 - **API contract** — route shapes, and cancel returning the current snapshot (the agent had proposed a bare 202) (DECISIONS #6).
 - **State model** — questioned whether a run-state store was needed; went without a store library after the agent's explanation. Run state stays a plain reducer, separate from the graph (DECISIONS #4).
 - **Node model** — one Transform node with an operation dropdown (DECISIONS #1).
+- **Validation rules** — confirmed the agent's proposal and added missing-node references, an Input-to-Output path requirement, and editable names/positions (DECISIONS #10).
+- **Run-time interaction model** — editing lock during starting/running, inspection allowed, presentation cleared on first edit (DECISIONS #11). Accepted the agent's gap-filling defaults but added a visible **Pending** status while a run is starting, rather than only disabling Cancel (DECISIONS #12).
 
 ✏️ *Why you kept these yourself, in your own words.*

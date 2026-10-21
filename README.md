@@ -2,12 +2,12 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status: M0 (scaffold) complete.** The monorepo, server, shared package and test runner are wired end to end via a health check. The canvas, executor and streaming are **not built yet** — sections below marked *(planned)* describe the agreed design, not working behavior.
+> **Status: M1 (shared contract) complete.** Schemas, graph rules and text transforms exist in `shared/` with unit tests, but nothing calls them yet: the canvas, server routes, executor and streaming are **not built**. Sections marked *(planned)* describe the agreed design, not working behavior.
 
 | Milestone | Scope | State |
 |---|---|---|
 | M0 | Workspaces, Express server, shared package, Vitest, docs | Done |
-| M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Not started |
+| M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Done |
 | M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Not started |
 | M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Not started |
 | M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Not started |
@@ -52,7 +52,17 @@ web/      @wand/web    — React + Vite app
 ## Architecture
 
 ### Shared contract
-`@wand/shared` is the single source of truth for the API shape. Both sides import the same Zod schemas: the server validates requests with them, the client parses responses with them. Graph validation rules *(planned, M1)* live here too, so the canvas can block invalid connections as you draw and the server re-checks authoritatively on accept.
+`@wand/shared` is the single source of truth for the API shape. Both sides import the same Zod schemas: the server validates requests with them, the client parses responses with them.
+
+| Module | Contents |
+|---|---|
+| `workflow.ts` | Node (`input` / `transform` / `output`, discriminated on `type`), edge and workflow schemas; Transform config discriminated on `operation`; size limits |
+| `graph.ts` | `canConnect()` for the canvas, `validateWorkflow()` returning `ValidationIssue`s tied to a node or edge |
+| `transforms.ts` | `applyTransform()`: uppercase, lowercase, normalize, literal replace |
+| `run.ts` | Node/run statuses, `RunSnapshot`, SSE `RunEvent` union |
+| `api.ts` | Command response bodies and the `ApiError` body |
+
+**Shape vs rules:** schemas accept anything the editor can legitimately hold (an empty name, an empty Replace `find`) so drafts always survive localStorage. Whether a workflow can *run* is decided by the rule functions, which return issues the UI can pin to a node (DECISIONS #13).
 
 ### Canvas state *(planned, M2/M4)*
 Two separate pieces of client state:
@@ -60,6 +70,16 @@ Two separate pieces of client state:
 - **Run state** — per-node status from the server stream. Ephemeral, server-owned, replaced wholesale on each SSE snapshot. Plain `useReducer`, no store library.
 
 Keeping them apart means status updates never mark the document dirty or leak into the saved/submitted graph. Known cost: every status event re-renders all nodes; fine at demo scale, and the scale path is a per-node-subscribable external store.
+
+While a run is starting or running, graph and configuration editing is locked; pan, zoom, and inspection stay available. After a run ends, its status overlay stays visible until the first edit (DECISIONS #11).
+
+### Validation
+Implemented in `shared/src/graph.ts` *(M1)*; wiring into the canvas *(planned, M2)* and server *(planned, M3)*.
+
+- **Structural** (`canConnect` while drawing; `validateWorkflow` on the server): no duplicate node/edge IDs, edges to missing nodes, self-connections, duplicate source/target pairs, edges into Input, edges out of Output, second incoming edge on a Transform/Output, or cycles.
+- **Run readiness** (only checked once the structure is valid): every node named, every Transform/Output has an incoming edge, Replace `find` non-empty, at least one Input-to-Output path. Dead ends are allowed.
+
+Full rationale: DECISIONS #10 and #12.
 
 ### Streaming *(planned, M3)*
 Server-Sent Events. Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional socket buys nothing. Every SSE connection starts with a full run `snapshot`, followed by sequenced deltas; reconnects (EventSource retries automatically) recover by re-snapshotting instead of replaying a log.
@@ -80,7 +100,17 @@ All routes are mounted under `/api`.
 | `GET` | `/api/runs/:id/events` | SSE subscription |
 | `POST` | `/api/runs/:id/cancel` | Cancel; returns the current snapshot |
 
-Request/response bodies will be defined as Zod schemas in `shared/` in M1 and documented here.
+Bodies (Zod schemas in `shared/src`):
+
+| Route | Request | Success | Errors |
+|---|---|---|---|
+| `POST /api/workflows` | `Workflow` | `201 { workflowId }` | `400 bad_request` (shape), `422 invalid_workflow` + `issues[]` |
+| `POST /api/workflows/:id/runs` | — | `202 { runId }` | `404 not_found` |
+| `GET /api/runs/:id` | — | `200 RunSnapshot` | `404 not_found` |
+| `GET /api/runs/:id/events` | — | `text/event-stream` of `RunEvent` | `404 not_found` |
+| `POST /api/runs/:id/cancel` | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
+
+Every error body is `ApiError { error, message, issues? }`. Each SSE connection receives a `snapshot` event first, then `node` / `run` deltas with increasing `seq`; clients drop deltas with `seq` ≤ the snapshot's.
 
 ## Decisions & cuts
 
@@ -97,4 +127,4 @@ See [DECISIONS.md](DECISIONS.md) for the chronological log.
 
 ## Next steps
 
-M1 — shared contract.
+M2 — canvas editor.

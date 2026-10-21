@@ -36,7 +36,7 @@ Run status lives in its own `useReducer`, not in React Flow `node.data`. The age
 **Trade-off:** every status event re-renders all nodes. Acceptable at demo scale; documented as the first thing to change for large graphs.
 
 ### 5. Run status overlay persists until the next edit or next run
-**Owner:** human · **When:** planning
+**Owner:** human · **When:** planning · *Refined by #11.*
 
 ### 6. API contract
 **Owner:** human (routes) · agent (`/api` prefix) · **When:** planning
@@ -50,14 +50,48 @@ One-way progress + POST commands fits SSE; native EventSource reconnects automat
 **Trade-off:** each reconnect resends O(nodes) state — negligible here.
 
 ### 8. Graph validation rules
-**Owner:** proposed · **When:** planning — *confirm before/during M1*
-
-- Blocked on connect: cycles, edges into Input, edges out of Output, self-loops, duplicate edges.
-- Transform and Output accept exactly one incoming edge (no merge semantics); fan-out allowed.
-- Checked on Run: ≥1 Input; every Transform/Output reachable from an Input; Replace `find` non-empty.
+**Owner:** proposed · **When:** planning · *Superseded by #10.*
 
 ### 9. npm-workspaces monorepo; `shared` consumed as TypeScript source
 **Owner:** agent · **When:** M0
 
 `shared/`, `server/`, `web/` as workspaces. `@wand/shared` exports `./src/index.ts` directly — Vite and tsx both compile it, so there is no build step and type changes are instant on both sides. Shared code uses `.ts` import extensions and is type-checked under `nodenext`, the stricter of its two consumers.
 **Trade-off:** each consumer re-type-checks shared source under its own compiler settings; shared must stay valid under both bundler and Node resolution.
+
+### 10. Graph validation rules (confirmed)
+**Owner:** human (confirmed agent proposal #8, added rules marked ★) · **When:** after M0
+
+Structural — enforced on connect in the canvas *and* re-checked by the server on accept:
+- No self-connections, duplicate source/target pairs, or cycles.
+- No edges into Input; no edges out of Output. ★ Output is a terminal step.
+- Transform and Output accept exactly one incoming edge (no merge semantics); fan-out is allowed.
+- ★ No edges referencing missing nodes (server-side; the canvas cannot produce them).
+
+Run readiness — checked when Run is pressed:
+- ★ At least one Input-to-Output path.
+- Every Transform/Output reachable from an Input.
+- Replace `find` is non-empty.
+
+★ Nodes have editable names and positions (both part of the workflow document).
+
+### 11. Editing lock and execution presentation
+**Owner:** human · **When:** after M0
+
+- Graph and configuration editing is locked while a run is **starting** or **running**.
+- Pan, zoom, and inspection remain available during execution.
+- Old execution presentation is cleared on the **first edit** after a terminal run (refines #5).
+
+### 12. Defaults filling gaps in #10 and #11
+**Owner:** human (accepted agent proposals; added the Pending message) · **When:** before M1
+
+- Moving a node is **not** an edit for #11; neither are selection, pan, or zoom. Only add, delete, connect, and config/name changes clear run presentation.
+- Cancel is disabled while a run is starting (no run ID yet), and the header shows a **Pending** status until the run is accepted.
+- Names are trimmed, required to run, ≤ 60 chars, and need not be unique (node ID is identity). New nodes get a default name.
+- Dead ends are allowed: a Transform with no downstream node, or an unconnected Input, simply runs.
+- Given one incoming edge per Transform/Output and no cycles, "reachable from an Input" reduces to "has an incoming edge", and an Input-to-Output path exists iff some Output has one. Validation checks the reduced form so issues point at a specific node.
+
+### 13. Zod validates shape; graph rules are plain functions
+**Owner:** agent (accepted by human) · **When:** M1
+
+Schemas accept anything the editor can legitimately hold — including empty names and an empty Replace `find` — so drafts always round-trip through localStorage. Rules (`canConnect`, `validateWorkflow`) decide what can run and return issues tied to a node or edge. The server maps schema failures to 400 and rule issues to 422.
+**Trade-off:** some constraints that read like schema concerns ("name is required") surface as rule issues instead.
