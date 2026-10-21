@@ -51,3 +51,21 @@ export const RunEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('run'), seq, status: RunStatus, finishedAt: z.number().optional() }),
 ])
 export type RunEvent = z.infer<typeof RunEvent>
+
+/**
+ * Applies an event to a snapshot. Used by the server to maintain run state and by the
+ * client to fold the stream, so both sides derive state the same way. Stale deltas
+ * (seq ≤ snapshot.seq) are ignored, which makes reconnect replays harmless.
+ */
+export function applyRunEvent(snapshot: RunSnapshot, event: RunEvent): RunSnapshot {
+  switch (event.type) {
+    case 'snapshot':
+      return event.snapshot
+    case 'node':
+      if (event.seq <= snapshot.seq) return snapshot
+      return { ...snapshot, seq: event.seq, nodes: { ...snapshot.nodes, [event.nodeId]: event.state } }
+    case 'run':
+      if (event.seq <= snapshot.seq) return snapshot
+      return { ...snapshot, seq: event.seq, status: event.status, finishedAt: event.finishedAt }
+  }
+}

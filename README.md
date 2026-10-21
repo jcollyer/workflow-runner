@@ -2,14 +2,14 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status: M2 (canvas editor) complete.** You can build, edit and validate a workflow in the browser, and it survives a reload. There is **no Run button yet**: the server routes, executor and streaming are **not built**. Sections marked *(planned)* describe the agreed design, not working behavior.
+> **Status: M3 (BFF) complete.** You can build, edit and validate a workflow in the browser, and the server can accept, run, stream and cancel workflows (verified with tests and curl). The UI is **not wired to the server yet** — there is no Run button until M4. Sections marked *(planned)* describe the agreed design, not working behavior.
 
 | Milestone | Scope | State |
 |---|---|---|
 | M0 | Workspaces, Express server, shared package, Vitest, docs | Done |
 | M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Done |
 | M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Done |
-| M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Not started |
+| M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Done |
 | M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Not started |
 | M5 | Empty/error/loading states, final docs, verification | Not started |
 
@@ -26,6 +26,8 @@ One command per side, in two terminals:
 ```bash
 npm run dev:server   # Express on http://localhost:3001
 ```
+
+To demo failures more often: `FAILURE_RATE=0.5 npm run dev:server` (any value from 0 to 1; default 0.1).
 
 ```bash
 npm run dev:web      # Vite on http://localhost:5173 (proxies /api → :3001)
@@ -92,19 +94,26 @@ Implemented in `shared/src/graph.ts` *(M1)* and used by the canvas *(M2)*; serve
 
 Full rationale: DECISIONS #10 and #12.
 
-### Streaming *(planned, M3)*
-Server-Sent Events. Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional socket buys nothing. Every SSE connection starts with a full run `snapshot`, followed by sequenced deltas; reconnects (EventSource retries automatically) recover by re-snapshotting instead of replaying a log.
+### Streaming *(M3 server; client planned, M4)*
+Server-Sent Events. Progress is one-way (server → client) and commands are plain POSTs, so a bidirectional socket buys nothing. Every SSE connection starts with a full run `snapshot`, followed by sequenced deltas (`id:` = `seq`); reconnects (EventSource retries automatically) recover by re-snapshotting instead of replaying a log. A `: ping` comment every 15 s keeps idle connections alive. The server ends the stream once the run settles, so the client must close its EventSource on the terminal event (DECISIONS #20).
 
-### Execution model *(planned, M3)*
-In-memory DAG scheduler. Each node simulates 0.5–3 s of work with ~10% failure. Full semantics in [DECISIONS.md](DECISIONS.md) (failure and cancellation entry).
+### Execution model *(M3)*
+`server/src/execution.ts` — an in-memory DAG scheduler, one `RunExecution` per run:
+- All nodes start `queued`; a node starts when all its upstream nodes have `succeeded`, so independent branches run concurrently.
+- Each running node holds a timer (0.5–3 s). On completion it fails with ~10% probability (any node type), otherwise it computes its output: Input emits its text, Transform applies its operation to the upstream output, Output passes it through.
+- A failure marks queued descendants `skipped`; other branches continue. The run becomes `failed` (any failure) or `succeeded` only when no node is queued or running.
+- Cancel clears all timers, marks queued/running nodes `cancelled`, leaves settled nodes alone, and is a no-op on a terminal run. A completion only applies to a node that is still `running`, so late timers cannot overwrite `cancelled`.
+- Every change is a numbered `RunEvent` folded into the snapshot with the shared `applyRunEvent`, then fanned out to subscribers.
 
-## API contract *(planned, M3)*
+Accepted workflows are stored as immutable copies, so edits in the browser never affect a run in flight. Full rules: DECISIONS #2, #19.
+
+## API contract *(M3)*
 
 All routes are mounted under `/api`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/health` | Liveness check *(implemented, M0)* |
+| `GET` | `/api/health` | Liveness check |
 | `POST` | `/api/workflows` | Validate and accept a graph snapshot |
 | `POST` | `/api/workflows/:id/runs` | Start execution; returns a run ID |
 | `GET` | `/api/runs/:id` | Latest run snapshot |
@@ -121,7 +130,7 @@ Bodies (Zod schemas in `shared/src`):
 | `GET /api/runs/:id/events` | — | `text/event-stream` of `RunEvent` | `404 not_found` |
 | `POST /api/runs/:id/cancel` | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
 
-Every error body is `ApiError { error, message, issues? }`. Each SSE connection receives a `snapshot` event first, then `node` / `run` deltas with increasing `seq`; clients drop deltas with `seq` ≤ the snapshot's.
+Every error body is `ApiError { error, message, issues? }` — including malformed JSON (400) and unknown `/api` routes (404). Each SSE connection receives a `snapshot` event first, then `node` / `run` deltas with increasing `seq`; clients drop deltas with `seq` ≤ the snapshot's.
 
 ## Decisions & cuts
 
@@ -140,7 +149,11 @@ See [DECISIONS.md](DECISIONS.md) for the chronological log.
 - New nodes can land on top of existing ones (placed at the viewport centre with a small cascade).
 - Every edit re-maps all nodes for React Flow; fine for demo-sized graphs, not tuned for hundreds of nodes (DECISIONS #14).
 - localStorage holds one workflow; there is no workflow list.
+- Accepted workflows and runs are never evicted from server memory.
+- Runs live in process timers: restarting the server loses in-flight runs, and an open EventSource will then get 404s on reconnect.
 
 ## Next steps
 
-M3 — BFF: accept workflow, executor, SSE, cancel.
+M4 — live run UI: Run/Cancel, Pending state, node status on the canvas, run details, editing lock, reconnect.
+
+Beyond the timebox: durable execution (persisted run log + job queue instead of in-process timers), TTL eviction for runs, a concurrency limit per run.

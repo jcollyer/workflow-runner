@@ -21,6 +21,8 @@ One `transform` node whose config is a discriminated union on `operation`: `uppe
 - Late completions must not overwrite `cancelled` states.
 - Cancelling an already-terminal run does not change its result.
 
+Confirmed before M3: **any** node can fail, including Input and Output.
+
 Agent-stated assumptions (not contradicted): a run cancelled after a node has failed but while others are still running ends `cancelled`; a node may only transition to `succeeded`/`failed` from `running`.
 
 ### 3. "Edits persist" = side-panel edits stick to the node + localStorage autosave
@@ -123,3 +125,20 @@ An empty canvas shows guidance and a "Start from example" button.
 - Escape deselects from anywhere (blurring a focused field); Delete/Backspace delete the selected node or edge but are ignored while typing.
 - Single selection only (multi-select and box-select disabled) to keep the side panel unambiguous.
 - New nodes appear at the viewport centre, cascading by 24 px; they can land on top of existing nodes.
+
+### 18. Visual polish deferred until core functionality works
+**Owner:** human · **When:** after M2
+
+Jeremy will polish look and feel after run execution works end to end; until then the UI aims for clear and functional, not finished.
+
+### 19. Executor: one timer per node, events folded with shared `applyRunEvent`
+**Owner:** agent (accepted by human) · **When:** M3
+
+`RunExecution` owns a run's snapshot. Every change is a numbered event applied with the same `applyRunEvent` the client will use, then fanned out to SSE subscribers, so server and client cannot disagree about how events change state. Each running node holds a `setTimeout`; cancel clears them all, and completion is also guarded by "only a `running` node may settle" — either safeguard alone keeps cancelled nodes cancelled (verified by mutation). `durationMs`/`shouldFail`/`now` are injectable, so tests choose which nodes fail instead of seeding `Math.random`; `FAILURE_RATE` env overrides the 10% default for demos.
+**Trade-off:** in-process timers are fine for a simulation but die with the process; durable execution would need a persisted run log and a job queue (see README next steps).
+
+### 20. SSE stream ends when the run settles
+**Owner:** agent · **When:** M3
+
+The server writes the terminal `run` event (or, for an already-terminal run, just the snapshot) and closes the response, so finished runs hold no connections or heartbeats. Clients must close their `EventSource` on a terminal event; otherwise it auto-reconnects and receives the final snapshot again.
+**Trade-off:** correctness of "stop listening" depends on the client honouring this; a misbehaving client costs one snapshot per retry interval, not a leak.

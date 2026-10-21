@@ -74,12 +74,13 @@ Responded to the agent's M2 plan. Lightly edited:
 
 Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISIONS.md)):
 
-- **Execution semantics** — failure propagation, concurrency, and cancellation rules (DECISIONS #2). The agent had proposed only "continue independent branches, skip descendants, run ends failed"; Jeremy specified the full rule set, including cancellation and late-completion handling.
+- **Execution semantics** — failure propagation, concurrency, and cancellation rules (DECISIONS #2); later confirmed that any node type can fail, not only Transforms. The agent had proposed only "continue independent branches, skip descendants, run ends failed"; Jeremy specified the full rule set, including cancellation and late-completion handling.
 - **API contract** — route shapes, and cancel returning the current snapshot (the agent had proposed a bare 202) (DECISIONS #6).
 - **State model** — questioned whether a run-state store was needed; went without a store library after the agent's explanation. Run state stays a plain reducer, separate from the graph (DECISIONS #4).
 - **Node model** — one Transform node with an operation dropdown (DECISIONS #1).
 - **Validation rules** — confirmed the agent's proposal and added missing-node references, an Input-to-Output path requirement, and editable names/positions (DECISIONS #10).
 - **Run-time interaction model** — editing lock during starting/running, inspection allowed, presentation cleared on first edit (DECISIONS #11). Accepted the agent's gap-filling defaults but added a visible **Pending** status while a run is starting, rather than only disabling Cancel (DECISIONS #12).
 - **Editing UX** — config edits apply immediately with invalid values kept and flagged, and node deletion removes connected edges (DECISIONS #15). Replaced the agent's proposed five-node first-visit example with a single Input → Transform → Output (DECISIONS #16).
+- **Where to draw the polish line** — deferred visual polish until execution works end to end, to do it by hand (DECISIONS #18).
 
 ✏️ *Why you kept these yourself, in your own words.*

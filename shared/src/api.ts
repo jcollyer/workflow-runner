@@ -18,9 +18,10 @@ export type StartRunResponse = z.infer<typeof StartRunResponse>
  * - 400 `bad_request`: body failed schema validation (malformed shape).
  * - 422 `invalid_workflow`: well-formed but breaks graph rules; see `issues`.
  * - 404 `not_found`: unknown workflow or run ID.
+ * - 500 `internal`: unexpected server error.
  */
 export const ApiError = z.object({
-  error: z.enum(['bad_request', 'invalid_workflow', 'not_found']),
+  error: z.enum(['bad_request', 'invalid_workflow', 'not_found', 'internal']),
   message: z.string(),
   issues: z.array(ValidationIssue).optional(),
 })
