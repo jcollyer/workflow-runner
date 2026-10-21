@@ -59,6 +59,13 @@ Confirmed the agent's proposed validation rules and extended them. Lightly edite
 > - Allow pan, zoom, and inspection during execution.
 > - Clear old execution presentation on the first edit after a terminal run.
 
+### Prompt 4 — Editing behaviour for the canvas (M2)
+Responded to the agent's M2 plan. Lightly edited:
+
+> The editing state sounds good, except for the first-time visitor default to a more simple input → transform → output example default. Let's also make sure:
+> - Apply config edits immediately to workflow state; allow temporary invalid field values and show useful validation feedback.
+> - Delete a node and its connected edges.
+
 ## 2. Where the agent was wrong or mediocre
 
 ✏️ *No corrections recorded yet. Add concrete cases as they happen: what the agent produced, what you changed, and why.*
@@ -73,5 +80,6 @@ Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISI
 - **Node model** — one Transform node with an operation dropdown (DECISIONS #1).
 - **Validation rules** — confirmed the agent's proposal and added missing-node references, an Input-to-Output path requirement, and editable names/positions (DECISIONS #10).
 - **Run-time interaction model** — editing lock during starting/running, inspection allowed, presentation cleared on first edit (DECISIONS #11). Accepted the agent's gap-filling defaults but added a visible **Pending** status while a run is starting, rather than only disabling Cancel (DECISIONS #12).
+- **Editing UX** — config edits apply immediately with invalid values kept and flagged, and node deletion removes connected edges (DECISIONS #15). Replaced the agent's proposed five-node first-visit example with a single Input → Transform → Output (DECISIONS #16).
 
 ✏️ *Why you kept these yourself, in your own words.*

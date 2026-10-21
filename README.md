@@ -2,13 +2,13 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status: M1 (shared contract) complete.** Schemas, graph rules and text transforms exist in `shared/` with unit tests, but nothing calls them yet: the canvas, server routes, executor and streaming are **not built**. Sections marked *(planned)* describe the agreed design, not working behavior.
+> **Status: M2 (canvas editor) complete.** You can build, edit and validate a workflow in the browser, and it survives a reload. There is **no Run button yet**: the server routes, executor and streaming are **not built**. Sections marked *(planned)* describe the agreed design, not working behavior.
 
 | Milestone | Scope | State |
 |---|---|---|
 | M0 | Workspaces, Express server, shared package, Vitest, docs | Done |
 | M1 | Shared contract: Zod schemas, graph validation, text transforms + tests | Done |
-| M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Not started |
+| M2 | Canvas editor: React Flow, palette, connect, settings panel, keyboard, localStorage | Done |
 | M3 | BFF: accept workflow, executor, SSE, cancel + executor tests | Not started |
 | M4 | Live run UI: node status, header progress, run details, cancel, reconnect | Not started |
 | M5 | Empty/error/loading states, final docs, verification | Not started |
@@ -64,17 +64,28 @@ web/      @wand/web    — React + Vite app
 
 **Shape vs rules:** schemas accept anything the editor can legitimately hold (an empty name, an empty Replace `find`) so drafts always survive localStorage. Whether a workflow can *run* is decided by the rule functions, which return issues the UI can pin to a node (DECISIONS #13).
 
-### Canvas state *(planned, M2/M4)*
+### Canvas state
 Two separate pieces of client state:
-- **Workflow document** — nodes, edges, selection. The user's work; autosaved to localStorage; sent to the server on Run.
-- **Run state** — per-node status from the server stream. Ephemeral, server-owned, replaced wholesale on each SSE snapshot. Plain `useReducer`, no store library.
+- **Editor state** *(M2)* — `web/src/state/editor.ts`, a pure reducer holding the `Workflow` document exactly as the shared schema defines it, plus UI-only selection. The document autosaves to localStorage (validated with the schema on load; anything stale or corrupt falls back to the example) and will be sent to the server on Run. React Flow nodes are derived from the document at render time (`components/Canvas.tsx`), and React Flow change events are translated back into reducer actions, so React Flow never holds a second copy of the document.
+- **Run state** *(planned, M4)* — per-node status from the server stream. Ephemeral, server-owned, replaced wholesale on each SSE snapshot. Plain `useReducer`, no store library.
+
+```
+web/src/
+  state/editor.ts        reducer + actions (pure, unit-tested)
+  state/storage.ts       localStorage load/save, schema-validated
+  state/useEditor.ts     wires reducer + autosave + validateWorkflow
+  components/Canvas.tsx  Workflow → React Flow mapping, change translation, connection feedback
+  components/…           Header, Palette, WorkflowNodeView, SidePanel, NodeSettingsPanel, Field
+```
+
+Editing behaviour: settings apply to the document on every keystroke; invalid values are kept and flagged (inline, as a node badge, and in the workflow panel) rather than blocked. Invalid connections are refused while dragging and explained in a short toast. Deleting a node removes its connected edges.
 
 Keeping them apart means status updates never mark the document dirty or leak into the saved/submitted graph. Known cost: every status event re-renders all nodes; fine at demo scale, and the scale path is a per-node-subscribable external store.
 
 While a run is starting or running, graph and configuration editing is locked; pan, zoom, and inspection stay available. After a run ends, its status overlay stays visible until the first edit (DECISIONS #11).
 
 ### Validation
-Implemented in `shared/src/graph.ts` *(M1)*; wiring into the canvas *(planned, M2)* and server *(planned, M3)*.
+Implemented in `shared/src/graph.ts` *(M1)* and used by the canvas *(M2)*; server enforcement *(planned, M3)*.
 
 - **Structural** (`canConnect` while drawing; `validateWorkflow` on the server): no duplicate node/edge IDs, edges to missing nodes, self-connections, duplicate source/target pairs, edges into Input, edges out of Output, second incoming edge on a Transform/Output, or cycles.
 - **Run readiness** (only checked once the structure is valid): every node named, every Transform/Output has an incoming edge, Replace `find` non-empty, at least one Input-to-Output path. Dead ends are allowed.
@@ -116,15 +127,20 @@ Every error body is `ApiError { error, message, issues? }`. Each SSE connection 
 
 See [DECISIONS.md](DECISIONS.md) for the chronological log.
 
-**Cut so far:** none yet.
+**Cut so far:**
+- Drag-from-palette: clicking a palette entry adds the node at the viewport centre instead.
+- Minimap, renaming the workflow, undo/redo, multi-select.
 
-**Cut candidates if time runs short (in order):** drag-from-palette (click-to-add instead), page-reload re-attach to a running run, minimap, renaming the workflow, undo.
+**Cut candidates if time runs short:** page-reload re-attach to a running run.
 
 ## Known limitations
 
 - No database: workflows and runs live in server memory and vanish on restart (by design).
 - No production build/start script for the server; it runs via `tsx` only.
+- New nodes can land on top of existing ones (placed at the viewport centre with a small cascade).
+- Every edit re-maps all nodes for React Flow; fine for demo-sized graphs, not tuned for hundreds of nodes (DECISIONS #14).
+- localStorage holds one workflow; there is no workflow list.
 
 ## Next steps
 
-M2 — canvas editor.
+M3 — BFF: accept workflow, executor, SSE, cancel.

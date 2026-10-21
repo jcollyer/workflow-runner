@@ -95,3 +95,31 @@ Run readiness — checked when Run is pressed:
 
 Schemas accept anything the editor can legitimately hold — including empty names and an empty Replace `find` — so drafts always round-trip through localStorage. Rules (`canConnect`, `validateWorkflow`) decide what can run and return issues tied to a node or edge. The server maps schema failures to 400 and rule issues to 422.
 **Trade-off:** some constraints that read like schema concerns ("name is required") surface as rule issues instead.
+
+### 14. Editor state: Workflow document in a reducer, React Flow nodes derived at render
+**Owner:** human (approach) · agent (implementation details) · **When:** M2
+
+The reducer holds the `Workflow` exactly as the schema defines it; React Flow nodes/edges are mapped from it on each change, and React Flow change events are translated back into reducer actions. Selection is UI-only state beside the document: never persisted, and selection changes keep the same `workflow` object so they never trigger a save (and will never count as an edit for #11).
+- React Flow drops a node's measured size when the node object changes identity, so the canvas keeps a UI-only map of measured sizes from `dimensions` changes and passes it back.
+- All nodes use one React Flow type (`workflow`); naming them `input`/`output` collides with React Flow's built-in node types and their default styles.
+
+**Trade-off:** every change re-maps all nodes and React Flow re-adopts every node object. Negligible at demo scale; at hundreds of nodes, memoise per node so untouched nodes keep identity.
+
+### 15. Config edits apply immediately; feedback instead of blocking
+**Owner:** human · **When:** M2
+
+Every settings field dispatches on change; there is no draft copy or Save button. Temporarily invalid values (empty name, empty Replace `find`) are kept and saved, and flagged in three places: inline under the field, as a badge on the node, and in the workflow panel's "Before this can run" list. Length limits are enforced with `maxLength`, so the document always parses.
+
+### 16. First-visit example is a single Input → Transform → Output
+**Owner:** human (replaced the agent's proposal of the sketch's five-node graph) · **When:** M2
+
+An empty canvas shows guidance and a "Start from example" button.
+
+### 17. Small editor behaviours
+**Owner:** agent · **When:** M2
+
+- Changing a Transform's operation renames it to match, unless the user has given it a custom name.
+- Switching away from Replace and back resets `find`/`replaceWith`.
+- Escape deselects from anywhere (blurring a focused field); Delete/Backspace delete the selected node or edge but are ignored while typing.
+- Single selection only (multi-select and box-select disabled) to keep the side panel unambiguous.
+- New nodes appear at the viewport centre, cascading by 24 px; they can land on top of existing nodes.
