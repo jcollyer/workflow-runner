@@ -172,3 +172,24 @@ During M4 verification, Run and Cancel shared one position: a run settled just b
 - A failed cancel request is shown in Run details ("Couldn't cancel: … try again") and Cancel re-enables; previously it failed silently.
 - Run details shows "Waiting for the first update from the server…" until the first snapshot.
 - ⌘/Ctrl+Enter runs the workflow when it is runnable.
+
+### 26. First polish pass: icons instead of colour coding
+**Owner:** human (direction and icon choices) · agent (mapping to lucide names, unlisted states) · **When:** polish
+
+Goal: less boilerplate, more minimal. Colour-coded left tabs on nodes and palette items are replaced with `lucide-react` icons — Input `FilePlus`, Transform `Zap`, Output `FileOutput` — and the uppercase type kicker is replaced by an icon beside the node name. Buttons get Play / Stop (filled, so the disabled stop doesn't read as a checkbox) / Trash icons; the Operation select uses a `ChevronsUpDown` caret instead of the native arrow. Run status uses icons instead of coloured dots: Queued `Clock`, Running `LoaderCircle` (spinning; static under reduced motion), Succeeded `Check`, Failed `CircleAlert`; the agent chose `SkipForward` for Skipped and `Ban` for Cancelled. Cancel became a neutral secondary button rather than red. Close buttons and the validation glyph use lucide `X` / `TriangleAlert` for consistency.
+**Trade-off:** one new dependency (`lucide-react`, tree-shaken per icon).
+
+### 27. Node layout: large icon on the left, status replaces type during runs
+**Owner:** human · **When:** polish · *Superseded by #28.*
+
+Revises the agent's first pass in #26. Node icons are 32 px on the left, spanning the name and description lines, which sit to the right. While configuring, the selected node's icon takes the accent colour. While a run is presented, the type icon is replaced by the status icon in its status colour, and the description line by the colour-coded status text (with duration); the output result and failure/skip reason stay below. Palette entries drop their hint text and show icon + name only. Nodes widen from 200 to 220 px to fit the icon column.
+
+### 28. Node layout: inverse-colour header over a light body
+**Owner:** human (header design, dark gray unselected) · agent (selected and run-state header colours) · **When:** polish
+
+Replaces #27 after trying it. Each node has a header bar in inverse colour holding a small (14 px) icon and the node name; the body below holds the description, the result or failure/skip reason, and validation badges. While configuring, the header is dark gray, and accent blue for the selected node. While a run is presented, the header and border take the node's status colour (running blue, succeeded green, failed red, queued/cancelled gray, skipped brown) and the icon becomes the status icon; the description line becomes the colour-coded status text with duration. Implemented with one CSS custom property (`--node-header`) that selection and run state override.
+
+### 29. No absolute black
+**Owner:** human · **When:** polish
+
+Use very dark grays instead of pure black. The visible palette already used `#1b1f24` for text and `#3d434a` for node headers; the remaining pure black was in translucent shadows (our toast, and React Flow's controls and node-hover defaults), now rebased on `--shadow-rgb` (the `--text` gray). A computed-style scan of the rendered page finds no visible `rgb(0, 0, 0)`.

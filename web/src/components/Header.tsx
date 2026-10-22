@@ -1,5 +1,8 @@
+import { Clock, Play, Square } from 'lucide-react'
+import type { NodeRunStatus } from '@wand/shared'
 import { countStatuses, isEditingLocked, isPending, isRunSettled, type RunState } from '../state/run.ts'
 import type { SaveStatus } from '../state/useEditor.ts'
+import { StatusIcon } from './icons.tsx'
 import { RUN_STATUS_LABELS } from './runLabels.ts'
 
 interface HeaderProps {
@@ -15,7 +18,7 @@ function StatusPill({ run, saveStatus }: { run: RunState; saveStatus: SaveStatus
   if (isPending(run)) {
     return (
       <span className="pill pill--pending" role="status">
-        <span className="pill__dot" aria-hidden="true" /> Pending
+        <Clock size={14} aria-hidden="true" /> Pending
       </span>
     )
   }
@@ -24,9 +27,11 @@ function StatusPill({ run, saveStatus }: { run: RunState; saveStatus: SaveStatus
     const { settled, total } = countStatuses(run.snapshot)
     const status = run.snapshot.status
     const lost = run.connection === 'lost' && !isRunSettled(run)
+    // Run statuses are a subset of node statuses, so the run reuses the node icons.
+    const iconStatus: NodeRunStatus = lost ? 'failed' : status
     return (
       <span className={`pill pill--run-${lost ? 'lost' : status}`} role="status">
-        <span className="pill__dot" aria-hidden="true" />
+        <StatusIcon status={iconStatus} />
         {lost ? 'Connection lost' : RUN_STATUS_LABELS[status]}
         <span className="pill__detail">
           {settled} of {total} completed
@@ -68,10 +73,12 @@ export function Header({ workflowName, saveStatus, run, issueCount, onRun, onCan
 
       {/* Separate, fixed positions: a late click on Cancel can never land on Run (DECISIONS #24). */}
       <div className="header__actions">
-        <button type="button" className="button button--danger" disabled={!canCancel} onClick={onCancel}>
+        <button type="button" className="button button--secondary" disabled={!canCancel} onClick={onCancel}>
+          <Square size={12} fill="currentColor" aria-hidden="true" />
           {cancelling ? 'Cancelling…' : 'Cancel'}
         </button>
         <button type="button" className="button" disabled={runBlockedReason !== undefined} title={runBlockedReason} onClick={onRun}>
+          <Play size={14} fill="currentColor" aria-hidden="true" />
           Run
         </button>
       </div>

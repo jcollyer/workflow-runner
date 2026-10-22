@@ -1,4 +1,5 @@
 import type { Dispatch } from 'react'
+import { ChevronsUpDown, Trash, X } from 'lucide-react'
 import {
   LIMITS,
   TransformOperation,
@@ -12,6 +13,7 @@ import {
 import { OPERATION_LABELS, configForOperation, type EditorAction } from '../state/editor.ts'
 import { Field } from './Field.tsx'
 import { TYPE_LABELS } from './flowTypes.ts'
+import { NodeTypeIcon, StatusIcon } from './icons.tsx'
 import { NODE_STATUS_LABELS, nodeDuration } from './runLabels.ts'
 
 interface NodeSettingsPanelProps {
@@ -31,14 +33,17 @@ export function NodeSettingsPanel({ node, issues, dispatch, locked, run }: NodeS
   return (
     <aside className="panel" aria-label={`${TYPE_LABELS[node.type]} settings`}>
       <header className="panel__header">
-        <h2 className="panel__title">{TYPE_LABELS[node.type]} settings</h2>
+        <h2 className="panel__title">
+          <NodeTypeIcon type={node.type} />
+          {TYPE_LABELS[node.type]} settings
+        </h2>
         <button
           type="button"
           className="icon-button"
           aria-label="Close settings"
           onClick={() => dispatch({ type: 'select', selection: null })}
         >
-          ×
+          <X size={18} aria-hidden="true" />
         </button>
       </header>
 
@@ -84,23 +89,26 @@ export function NodeSettingsPanel({ node, issues, dispatch, locked, run }: NodeS
             <>
               <Field label="Operation" hint={describeTransform(node.config)}>
                 {(control) => (
-                  <select
-                    {...control}
-                    value={node.config.operation}
-                    onChange={(e) =>
-                      dispatch({
-                        type: 'setTransformConfig',
-                        id: node.id,
-                        config: configForOperation(TransformOperation.parse(e.target.value), node.config),
-                      })
-                    }
-                  >
-                    {TransformOperation.options.map((operation) => (
-                      <option key={operation} value={operation}>
-                        {OPERATION_LABELS[operation]}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="select">
+                    <select
+                      {...control}
+                      value={node.config.operation}
+                      onChange={(e) =>
+                        dispatch({
+                          type: 'setTransformConfig',
+                          id: node.id,
+                          config: configForOperation(TransformOperation.parse(e.target.value), node.config),
+                        })
+                      }
+                    >
+                      {TransformOperation.options.map((operation) => (
+                        <option key={operation} value={operation}>
+                          {OPERATION_LABELS[operation]}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronsUpDown size={14} aria-hidden="true" className="select__icon" />
+                  </div>
                 )}
               </Field>
 
@@ -119,6 +127,7 @@ export function NodeSettingsPanel({ node, issues, dispatch, locked, run }: NodeS
       {!locked && (
         <footer className="panel__footer">
           <button type="button" className="danger-link" onClick={() => dispatch({ type: 'removeNode', id: node.id })}>
+            <Trash size={14} aria-hidden="true" />
             Delete node
           </button>
         </footer>
@@ -132,7 +141,7 @@ function NodeRunSection({ run }: { run: NodeRunState }) {
   return (
     <section className="run-section" aria-label="Run result">
       <div className={`run-section__status status--${run.status}`}>
-        <span className="status-dot" aria-hidden="true" />
+        <StatusIcon status={run.status} size={16} />
         {NODE_STATUS_LABELS[run.status]}
         {duration && <span className="muted"> · {duration}</span>}
       </div>

@@ -66,6 +66,11 @@ Responded to the agent's M2 plan. Lightly edited:
 > - Apply config edits immediately to workflow state; allow temporary invalid field values and show useful validation feedback.
 > - Delete a node and its connected edges.
 
+### Prompt 5 — First polish direction (after M5)
+Lightly edited:
+
+> For the first round of polish, I would like to make the configuration and running UIs look less like they were made by AI. I'm not trying to hide the AI assistance, I just prefer a less boilerplate look. Let's keep things minimal: remove the colour-coded left tabs for nodes, replacing them with icons from `lucide-react` — input: new document; transform: lightning; output: export document; play; stop; delete: trash; Operation dropdown: up/down caret; during a run — queued: clock, running: animated spinner, complete: checkmark, failed: error sign.
+
 ## 2. Where the agent was wrong or mediocre
 
 ### Run/Cancel race: over-engineered fix replaced with a layout change (M5)
@@ -73,7 +78,11 @@ Responded to the agent's M2 plan. Lightly edited:
 - **What I changed:** rejected it and asked for Cancel to sit next to Run, with both enabled or disabled by the rules we already had (DECISIONS #24).
 - **Why:** in my words at the time — "I don't like the amount of complexity we are adding to resolve the Run/Cancel race issue, especially using another useEffect seems like a trade off i would rather not make." Fixed positions remove the race structurally instead of papering over it with timing.
 
-✏️ *Add at least one more concrete case: what the agent produced, what you changed, and why.*
+### First icon pass: node design reworked (polish)
+- **What the agent produced:** following my icon list, it put a small (16 px) type icon inline beside each node's name with the description underneath, kept hint text under each palette entry, gave no visual cue on the icon for the selected node, and showed run status as an extra icon-and-label row added beneath the description.
+- **What I changed:** node icons about twice the size (32 px) on the left, spanning both lines of text, with name and description on the right; removed the palette hint text; the selected node's icon is highlighted while configuring; during a run the type icon is *replaced* by the status icon (clock, spinner, check, alert) and the description line is *replaced* by colour-coded status text, rather than adding another row (DECISIONS #27).
+- **Why:** ✏️ *in your words — the goal I'd set was a minimal, less boilerplate look (prompt 5).*
+- **Then:** after seeing my own 32 px layout in the browser, I iterated again to an inverse-colour header (small icon + name) over a light body, dark gray when unselected (DECISIONS #28).
 
 ## 3. What I kept myself
 
@@ -88,5 +97,6 @@ Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISI
 - **Editing UX** — config edits apply immediately with invalid values kept and flagged, and node deletion removes connected edges (DECISIONS #15). Replaced the agent's proposed five-node first-visit example with a single Input → Transform → Output (DECISIONS #16).
 - **Where to draw the polish line** — deferred visual polish until execution works end to end, to do it by hand (DECISIONS #18).
 - **Run/Cancel race** — chose separate, fixed Run and Cancel buttons over the agent's timed hold (DECISIONS #24; see section 2).
+- **Visual direction** — set the minimal, icon-based look and chose the icons (DECISIONS #26).
 
 ✏️ *Why you kept these yourself, in your own words.*

@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import type { RunState } from '../state/run.ts'
 
 /** Persistent canvas banner for a run that could not start. */
@@ -18,7 +19,7 @@ export function RunBanner({ run, onDismiss }: { run: RunState; onDismiss: () => 
         )}
       </div>
       <button type="button" className="icon-button" aria-label="Dismiss" onClick={onDismiss}>
-        ×
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   )

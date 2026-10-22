@@ -98,7 +98,7 @@ Accepted workflows are stored as immutable copies, so edits in the browser can n
 
 ### Run experience
 - **Header:** Cancel and Run sit side by side in fixed positions, so a late click on Cancel can never land on Run (DECISIONS #24). Run is disabled while a run is in flight or the workflow has issues (with the reason as a tooltip); Cancel is enabled only while a run is in flight. The status pill shows **Pending** until the run is accepted and its first snapshot arrives (Cancel stays disabled then — there is no run ID yet), then `Running · 2 of 5 completed`, then the outcome.
-- **Canvas:** each node's border and status line carry its state — queued dimmed, running pulsing blue, succeeded green, failed red with the reason, skipped dashed with the upstream cause, cancelled dimmed — plus duration and output text. Edges animate while their target runs.
+- **Canvas:** each node has an inverse-colour header (icon + name): dark gray while configuring, blue when selected. During a run the header takes the node's status colour and status icon, and the description line becomes colour-coded status text with duration — queued (clock, gray, dimmed), running (spinner, blue), succeeded (check, green), failed (alert, red, with the reason below), skipped (brown, dashed, with the upstream cause), cancelled (gray, dimmed). Output nodes show their result text. Edges animate while their target runs (DECISIONS #28).
 - **Side panel:** with nothing selected, Run details shows connection state, run ID, start time, elapsed time and per-status counts. Selecting a node during a run shows its status and output or error, with settings read-only.
 
 ### Handling the ugly parts
@@ -130,7 +130,7 @@ Every error body is `ApiError { error, message, issues? }`, including malformed 
 
 Chronological log with owner and trade-off for each: [DECISIONS.md](DECISIONS.md). How the agent was used: [AI_NOTES.md](AI_NOTES.md).
 
-**Where the polish line is.** Effort went into what makes a run legible at a glance and the editor hard to break: per-node status on the canvas, live counts, Pending state, validation feedback in three places, explained connection refusals, the editing lock, Run/Cancel in fixed positions, and the reconnect paths. Visual design (typography, colour system, spacing, motion) is deliberately plain; it is a separate hand-done pass after functionality (DECISIONS #18).
+**Where the polish line is.** Effort went into what makes a run legible at a glance and the editor hard to break: per-node status on the canvas, live counts, Pending state, validation feedback in three places, explained connection refusals, the editing lock, Run/Cancel in fixed positions, and the reconnect paths. Visual design is deliberately plain and done in hand-directed passes after functionality (DECISIONS #18). The first passes replaced colour coding with a small `lucide-react` icon set for node types, actions and run status, and moved to an inverse-colour node header that carries the status during a run (DECISIONS #26–28).
 
 **Cut:**
 - Drag-from-palette — clicking a palette entry adds the node at the viewport centre.
@@ -146,7 +146,7 @@ Page-reload re-attach started as a cut candidate and was implemented once snapsh
 - New nodes can land on top of existing ones (placed at the viewport centre with a small cascade).
 - localStorage holds one workflow; there is no workflow list.
 - Elapsed time compares the server's `startedAt` with the browser clock — fine on one machine; a remote deployment would need server-relative time.
-- The production web bundle is a single 521 kB chunk (159 kB gzipped: React, React Flow, Zod); no code splitting.
+- The production web bundle is a single 528 kB chunk (161 kB gzipped: React, React Flow, Zod, lucide icons); no code splitting.
 - Not exercised by hand: a real network drop mid-run (the EventSource reconnect path is implemented and the snapshot logic is unit-tested, but only simulated in the browser).
 
 ## With another week

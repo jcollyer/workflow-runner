@@ -85,12 +85,11 @@
 
 .palette__item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px;
   background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-left-width: 4px;
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
@@ -104,24 +103,13 @@
   font-weight: 600;
 }
 
-.palette__hint {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.palette__item--input {
-  border-left-color: #6a8dbf;
-}
-
-.palette__item--transform {
-  border-left-color: #8a6abf;
-}
-
-.palette__item--output {
-  border-left-color: #5a9e7a;
-}
-
 /* ---------- Canvas ---------- */
+
+/* React Flow's default shadows are translucent black; rebase them on our dark gray. */
+.react-flow {
+  --xy-controls-box-shadow: 0 0 2px 1px rgb(var(--shadow-rgb) / 0.08);
+  --xy-node-boxshadow-hover: 0 1px 4px 1px rgb(var(--shadow-rgb) / 0.08);
+}
 
 .canvas {
   position: relative;
@@ -138,7 +126,7 @@
   color: #fff;
   border-radius: 8px;
   font-size: 13px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.15);
+  box-shadow: 0 4px 16px rgb(var(--shadow-rgb) / 0.15);
   pointer-events: none;
 }
 
@@ -162,41 +150,52 @@
 /* ---------- Nodes ---------- */
 
 .wf-node {
-  width: 200px;
-  padding: 10px 14px;
+  --node-header: #3d434a;
+  width: 220px;
   background: var(--surface);
-  border: 1.5px solid var(--border-strong);
-  border-left-width: 4px;
+  border: 1px solid var(--node-header);
   border-radius: var(--radius);
 }
 
-.wf-node--input {
-  border-left-color: #6a8dbf;
-}
-
-.wf-node--transform {
-  border-left-color: #8a6abf;
-}
-
-.wf-node--output {
-  border-left-color: #5a9e7a;
-}
-
 .wf-node.is-selected {
-  border-color: var(--accent);
+  --node-header: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.wf-node__kicker {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+/* While a run is presented the header takes the node's status colour (set by .status--*). */
+.wf-node[class*='run--'] {
+  --node-header: var(--status-color);
+}
+
+.type-icon {
+  flex: none;
   color: var(--muted);
 }
 
+/* Inverse-colour header: dark gray while configuring, accent when selected, status colour during a run. */
+.wf-node__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--node-header);
+  color: #fff;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  transition: background-color 0.2s;
+}
+
+.wf-node__header .type-icon,
+.wf-node__header .status-icon {
+  color: inherit;
+}
+
+.wf-node__body {
+  padding: 8px 10px 10px;
+}
+
 .wf-node__title {
-  font-size: 15px;
+  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -206,7 +205,7 @@
 .wf-node__title.is-placeholder {
   font-style: italic;
   font-weight: 500;
-  color: var(--muted);
+  opacity: 0.75;
 }
 
 .wf-node__subtitle {
@@ -218,6 +217,9 @@
 }
 
 .wf-node__issue {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 8px;
   padding: 4px 8px;
   font-size: 11px;
@@ -267,6 +269,9 @@
 }
 
 .panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
@@ -293,6 +298,10 @@
 }
 
 .icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
   width: 28px;
   height: 28px;
   font-size: 20px;
@@ -310,6 +319,9 @@
 }
 
 .button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 8px 14px;
   background: var(--accent);
   color: #fff;
@@ -320,6 +332,9 @@
 }
 
 .danger-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0;
   background: none;
   border: none;
@@ -373,6 +388,25 @@
 
 .field textarea {
   resize: vertical;
+}
+
+.select {
+  position: relative;
+}
+
+.field .select select {
+  appearance: none;
+  padding-right: 32px;
+  cursor: pointer;
+}
+
+.select__icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .field.has-error input,
@@ -474,10 +508,23 @@ kbd {
   background: var(--status-color, var(--border-strong));
 }
 
-.status--running .status-dot,
-.pill--pending .pill__dot,
-.pill--run-running .pill__dot {
-  animation: pulse 1.2s ease-in-out infinite;
+.status-icon {
+  flex: none;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin,
+  .status-dot {
+    animation: none !important;
+  }
 }
 
 @keyframes pulse {
@@ -495,27 +542,23 @@ kbd {
   cursor: not-allowed;
 }
 
-.button--danger {
-  background: var(--danger);
+.button--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
 }
 
 .pill__detail {
   color: var(--muted);
 }
 
-.pill--pending .pill__dot,
-.pill--run-running .pill__dot { background: var(--status-running); }
 .pill--pending,
 .pill--run-running { color: var(--status-running); }
 .pill--run-succeeded { color: var(--status-succeeded); }
-.pill--run-succeeded .pill__dot { background: var(--status-succeeded); }
 .pill--run-failed,
 .pill--run-lost { color: var(--status-failed); }
-.pill--run-failed .pill__dot,
-.pill--run-lost .pill__dot { background: var(--status-failed); }
-.pill--run-cancelled .pill__dot { background: var(--status-cancelled); }
 
-/* Nodes during a run: the border carries the status so it reads at a glance. */
+/* Nodes during a run: header and border carry the status colour (see .wf-node__header). */
 .wf-node[class*='run--'] {
   transition: border-color 0.2s, box-shadow 0.2s, opacity 0.2s;
 }
@@ -526,42 +569,30 @@ kbd {
   opacity: 0.7;
 }
 
-.wf-node.run--running {
-  border-color: var(--status-running);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.wf-node.run--succeeded {
-  border-color: var(--status-succeeded);
-}
-
-.wf-node.run--failed {
-  border-color: var(--status-failed);
-  box-shadow: 0 0 0 3px rgb(198 40 40 / 0.15);
-}
-
 .wf-node.run--skipped {
   border-style: dashed;
 }
 
-.wf-node__status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  font-size: 12px;
+.wf-node.run--running {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.wf-node.run--failed {
+  box-shadow: 0 0 0 3px rgb(198 40 40 / 0.15);
+}
+
+.wf-node__subtitle.wf-node__status {
   font-weight: 500;
   color: var(--status-color);
 }
 
 .wf-node__duration {
-  margin-left: auto;
   font-weight: 400;
   color: var(--muted);
 }
 
 .wf-node__output {
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -580,7 +611,7 @@ kbd {
 }
 
 .wf-node__error {
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 11px;
   color: var(--status-color, var(--danger));
 }
@@ -642,7 +673,7 @@ kbd {
 .run-section__status {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-weight: 600;
   color: var(--status-color);
 }
@@ -713,6 +744,16 @@ kbd {
 
 .details__row {
   display: contents;
+}
+
+.details__row dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.details__row dt .status-icon {
+  color: var(--status-color);
 }
 
 .details__row dd {

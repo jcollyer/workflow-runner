@@ -4,6 +4,8 @@
   --border: #dde1e6;
   --border-strong: #b9c0c9;
   --text: #1b1f24;
+  /* Shadows use the darkest gray (--text) rather than pure black. */
+  --shadow-rgb: 27 31 36;
   --muted: #5f6873;
   --accent: #2f6fde;
   --accent-soft: rgb(47 111 222 / 0.18);

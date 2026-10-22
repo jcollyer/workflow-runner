@@ -1,8 +1,10 @@
 import { useEffect, useState, type Dispatch } from 'react'
+import { Trash } from 'lucide-react'
 import { defaultNodeName, type Workflow, type WorkflowNode } from '@wand/shared'
 import type { EditorAction, Selection } from '../state/editor.ts'
 import { countStatuses, isRunSettled, type RunState } from '../state/run.ts'
 import type { WorkflowIssues } from '../state/useEditor.ts'
+import { StatusIcon } from './icons.tsx'
 import { NodeSettingsPanel } from './NodeSettingsPanel.tsx'
 import { CONNECTION_LABELS, NODE_STATUS_LABELS, formatDuration } from './runLabels.ts'
 
@@ -53,6 +55,7 @@ export function SidePanel({ workflow, selection, issues, dispatch, run, locked }
           {!locked && (
             <footer className="panel__footer">
               <button type="button" className="danger-link" onClick={() => dispatch({ type: 'removeEdge', id: edge.id })}>
+                <Trash size={14} aria-hidden="true" />
                 Delete connection
               </button>
             </footer>
@@ -138,7 +141,10 @@ function RunDetailsPanel({ run }: { run: Extract<RunState, { phase: 'active' }> 
             </div>
             {COUNTED_STATUSES.map((status) => (
               <div key={status} className={`details__row status--${status}`}>
-                <dt>{NODE_STATUS_LABELS[status]}</dt>
+                <dt>
+                  <StatusIcon status={status} />
+                  {NODE_STATUS_LABELS[status]}
+                </dt>
                 <dd>{counts[status]}</dd>
               </div>
             ))}
