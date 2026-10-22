@@ -2,8 +2,6 @@
 
 Agent: Claude Code (Claude Opus 5.5). Entries are recorded as they happen; nothing here is reconstructed after the fact.
 
-> ✏️ = placeholder that needs Jeremy's own words.
-
 ## 1. Key prompts
 
 ### Prompt 1 — Kickoff: constraints, working agreement, scope (planning)
@@ -81,7 +79,7 @@ Lightly edited:
 ### First icon pass: node design reworked (polish)
 - **What the agent produced:** following my icon list, it put a small (16 px) type icon inline beside each node's name with the description underneath, kept hint text under each palette entry, gave no visual cue on the icon for the selected node, and showed run status as an extra icon-and-label row added beneath the description.
 - **What I changed:** node icons about twice the size (32 px) on the left, spanning both lines of text, with name and description on the right; removed the palette hint text; the selected node's icon is highlighted while configuring; during a run the type icon is *replaced* by the status icon (clock, spinner, check, alert) and the description line is *replaced* by colour-coded status text, rather than adding another row (DECISIONS #27).
-- **Why:** ✏️ *in your words — the goal I'd set was a minimal, less boilerplate look (prompt 5).*
+- **Why:** the goal I'd set was a minimal, less boilerplate look (prompt 5).
 - **Then:** after seeing my own 32 px layout in the browser, I iterated again to an inverse-colour header (small icon + name) over a light body, dark gray when unselected (DECISIONS #28).
 
 ### Spinner kept spinning after a run finished (polish)
@@ -104,4 +102,4 @@ Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISI
 - **Run/Cancel race** — chose separate, fixed Run and Cancel buttons over the agent's timed hold (DECISIONS #24; see section 2).
 - **Visual direction** — set the minimal, icon-based look and chose the icons (DECISIONS #26).
 
-✏️ *Why you kept these yourself, in your own words.*
+My reasoning for keeping these decisions to myself was keeping the scope of this project in line with the mental modal i had. With a workflow builder, the possibilities are essentially endless. I wanted to be able to clearly defend design decisions, and making them up front felt like the correct approach.
