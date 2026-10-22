@@ -2,8 +2,6 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status:** functionally complete (M0–M5). Build a workflow, press Run, and watch each node move through queued → running → succeeded / failed / skipped; cancel mid-run; reload mid-run and it re-attaches. Visual polish was done in hand-directed passes after functionality (DECISIONS #18, #26–29).
-
 ## Design sketches
 
 Rough sketches I drew before starting, shared with the agent as the UI brief (AI_NOTES, prompt 1).
@@ -12,11 +10,6 @@ Rough sketches I drew before starting, shared with the agent as the UI brief (AI
 |---|---|
 | ![Edit mode: canvas with an Input fanning out to Uppercase and Lowercase transforms and two outputs, with the Transform Settings panel open](docs/sketches/edit-mode.png) | ![Run mode: the same graph mid-run with per-node status, a progress pill, and the Run details panel](docs/sketches/run-mode.png) |
 
-Where the built UI departs from them, each change is a recorded decision:
-- The header's "Edited" pill and the per-field "SAVED" indicator became a single "Saved locally" pill; edits autosave locally and the server only sees the workflow on Run (DECISIONS #3).
-- "Cancel Run" no longer replaces "Run" in the same spot: Cancel sits beside Run so a late click can't start a new run (DECISIONS #24).
-- Nodes use an inverse-colour header with icons, and carry the run status in that header, instead of plain outlined boxes with a status line (DECISIONS #26–28).
-- The first-visit example is a single Input → Transform → Output rather than the five-node graph drawn here (DECISIONS #16).
 
 | Milestone | Scope |
 |---|---|
@@ -47,7 +40,6 @@ npm run dev:web      # Vite on http://localhost:5173 (proxies /api → :3001)
 
 Open http://localhost:5173. A first visit loads an Input → Transform → Output example; press **Run** (or ⌘/Ctrl+Enter).
 
-To see failures more often: `FAILURE_RATE=0.5 npm run dev:server` (0–1, default 0.1). `PORT` moves the server; `API_TARGET` points the Vite proxy elsewhere.
 
 From the repo root:
 
@@ -76,19 +68,33 @@ web/src/      @wand/web — React + Vite + React Flow
   components/   Canvas, WorkflowNodeView, Header, Palette, SidePanel, NodeSettingsPanel, …
 ```
 
+## API contract
+
+All routes are under `/api`; bodies are Zod schemas in `shared/src`.
+
+| Route | Request | Success | Errors |
+|---|---|---|---|
+| `GET /api/health` | — | `200 { ok, service }` | — |
+| `POST /api/workflows` — validate and accept a graph snapshot | `Workflow` | `201 { workflowId }` | `400 bad_request` (shape), `422 invalid_workflow` + `issues[]` |
+| `POST /api/workflows/:id/runs` — start execution | — | `202 { runId }` | `404 not_found` |
+| `GET /api/runs/:id` — latest snapshot | — | `200 RunSnapshot` | `404 not_found` |
+| `GET /api/runs/:id/events` — SSE subscription | — | `text/event-stream` of `RunEvent` | `404 not_found` |
+| `POST /api/runs/:id/cancel` — cancel | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
+
+
 ## Architecture
 
 ### Canvas state
-Two pieces of client state, deliberately kept apart:
-
-- **Workflow document** (`state/editor.ts`) — a pure reducer holding the `Workflow` exactly as the shared schema defines it, plus UI-only selection. It autosaves to localStorage (schema-validated on load; anything stale or corrupt falls back to the example) and is what gets sent on Run. React Flow nodes are *derived* from it at render time and React Flow's change events are translated back into reducer actions, so React Flow never holds a second copy of the document (DECISIONS #14).
-- **Run state** (`state/run.ts` + `useRun.ts`) — a pure reducer (`idle` → `starting` → `active`) that folds the SSE stream with the same `applyRunEvent` the server uses. `useRun` owns every side effect: Run's two POSTs, one EventSource per run, cancel, and reload re-attach. Run state never touches the document, so status updates can't mark it dirty or leak into what is saved or submitted.
+- The canvas includes Two pieces of client state, deliberately kept apart:
+1. **Workflow state** (`state/editor.ts`)
+2. **Run state** (`state/run.ts` + `useRun.ts`)
+Both are pure reducer holding either the `Workflow` as the shared schema defines it, or the current nodes running state (`idle`, `starting`, `active`)
 
 Every editor action passes through one gate in `App.tsx`: while a run is starting or running, document changes are dropped (pan, zoom and inspection still work); after a run settles, the first content edit clears its presentation — moving, selecting, pan and zoom don't count as edits (DECISIONS #11, #12, #23).
 
 **Editing feedback.** Settings apply on every keystroke. Invalid values (an empty name, an empty Replace `find`) are kept rather than blocked, and flagged inline under the field, as a badge on the node, and in the workflow panel's "Before this can run" list. Invalid connections are refused while dragging, with a short explanation (DECISIONS #15).
 
-**Why React Flow, and how it scales.** React Flow gives pan/zoom, handles, connection dragging and edge routing for free, which is most of an editor's interaction cost; raw SVG would mean rebuilding that before reaching the interesting parts. The cost is that its node model is not ours, hence the derive-and-translate layer. At demo scale every edit re-maps all nodes and every SSE event re-renders all nodes. For hundreds of nodes I would (1) memoise the Workflow → React Flow mapping per node so untouched nodes keep identity, and (2) move run state into an external store with per-node subscriptions (`useSyncExternalStore` or Zustand), so one node's status change re-renders one node. React Flow can also skip rendering off-screen nodes via `onlyRenderVisibleElements` (not enabled here).
+**Why React Flow, and useReducer** React Flow gives pan/zoom, handles, connection dragging and edge routing for free. I chose to implement simple useReducer for the graph and run state. This approach I felt was a fine trade-off for the complexity of this demo. In production app, I would move run state into an external store like Zustand, with per-node subscriptions so that thousands of nodes are not re-rendering on each new event.
 
 ### Validation
 `shared/src/graph.ts`, used by the canvas while editing and re-checked by the server on accept (DECISIONS #10, #12):
@@ -110,10 +116,6 @@ Progress is one-way (server → client) and commands are plain POSTs, so a bidir
 
 Accepted workflows are stored as immutable copies, so edits in the browser can never affect a run in flight. Timing and failure are injectable, so tests choose which nodes fail rather than seeding `Math.random`.
 
-### Run experience
-- **Header:** Cancel and Run sit side by side in fixed positions, so a late click on Cancel can never land on Run (DECISIONS #24). Run is disabled while a run is in flight or the workflow has issues (with the reason as a tooltip); Cancel is enabled only while a run is in flight. The status pill shows **Pending** until the run is accepted and its first snapshot arrives (Cancel stays disabled then — there is no run ID yet), then `Running · 2 of 5 completed`, then the outcome.
-- **Canvas:** each node has an inverse-colour header (icon + name): dark gray while configuring, blue when selected. During a run the header takes the node's status colour and status icon, and the description line becomes colour-coded status text with duration — queued (clock, gray, dimmed), running (spinner, blue), succeeded (check, green), failed (alert, red, with the reason below), skipped (brown, dashed, with the upstream cause), cancelled (gray, dimmed). Output nodes show their result text. Edges animate while their target runs (DECISIONS #28).
-- **Side panel:** with nothing selected, Run details shows connection state, run ID, start time, elapsed time and per-status counts. Selecting a node during a run shows its status and output or error, with settings read-only.
 
 ### Handling the ugly parts
 | Situation | Behaviour |
@@ -125,20 +127,6 @@ Accepted workflows are stored as immutable copies, so edits in the browser can n
 | **Run no longer exists** (server restarted) | The stream fails permanently → marked lost; editing unlocks with an explanation instead of staying stuck. |
 | **Start fails** (server down, 422) | Banner on the canvas with the reason and any issues; editing stays unlocked. |
 
-## API contract
-
-All routes are under `/api`; bodies are Zod schemas in `shared/src`.
-
-| Route | Request | Success | Errors |
-|---|---|---|---|
-| `GET /api/health` | — | `200 { ok, service }` | — |
-| `POST /api/workflows` — validate and accept a graph snapshot | `Workflow` | `201 { workflowId }` | `400 bad_request` (shape), `422 invalid_workflow` + `issues[]` |
-| `POST /api/workflows/:id/runs` — start execution | — | `202 { runId }` | `404 not_found` |
-| `GET /api/runs/:id` — latest snapshot | — | `200 RunSnapshot` | `404 not_found` |
-| `GET /api/runs/:id/events` — SSE subscription | — | `text/event-stream` of `RunEvent` | `404 not_found` |
-| `POST /api/runs/:id/cancel` — cancel | — | `200 RunSnapshot` (unchanged if already terminal) | `404 not_found` |
-
-Every error body is `ApiError { error, message, issues? }`, including malformed JSON (400), unknown `/api` routes (404) and unexpected failures (500 `internal`).
 
 ## Decisions & cuts
 

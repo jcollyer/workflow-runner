@@ -33,7 +33,6 @@ export function useEditor() {
   // Selection changes keep the same workflow object, so they never trigger a save.
   useEffect(() => {
     // Syncing to an external system (localStorage) and surfacing whether the write worked.
-    // oxlint-disable-next-line react/set-state-in-effect
     setSaveStatus(saveWorkflow(state.workflow) ? 'saved' : 'unavailable')
   }, [state.workflow])
 
