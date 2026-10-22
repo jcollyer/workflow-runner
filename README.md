@@ -2,7 +2,21 @@
 
 A mini workflow canvas: compose a graph of text-processing steps, run it on a simulated backend, and watch per-node progress stream onto the canvas.
 
-> **Status:** functionally complete (M0–M5). Build a workflow, press Run, and watch each node move through queued → running → succeeded / failed / skipped; cancel mid-run; reload mid-run and it re-attaches. Visual polish is a deliberate later pass (DECISIONS #18).
+> **Status:** functionally complete (M0–M5). Build a workflow, press Run, and watch each node move through queued → running → succeeded / failed / skipped; cancel mid-run; reload mid-run and it re-attaches. Visual polish was done in hand-directed passes after functionality (DECISIONS #18, #26–29).
+
+## Design sketches
+
+Rough sketches I drew before starting, shared with the agent as the UI brief (AI_NOTES, prompt 1).
+
+| Edit mode — Transform Settings panel | Run mode — Run details panel |
+|---|---|
+| ![Edit mode: canvas with an Input fanning out to Uppercase and Lowercase transforms and two outputs, with the Transform Settings panel open](docs/sketches/edit-mode.png) | ![Run mode: the same graph mid-run with per-node status, a progress pill, and the Run details panel](docs/sketches/run-mode.png) |
+
+Where the built UI departs from them, each change is a recorded decision:
+- The header's "Edited" pill and the per-field "SAVED" indicator became a single "Saved locally" pill; edits autosave locally and the server only sees the workflow on Run (DECISIONS #3).
+- "Cancel Run" no longer replaces "Run" in the same spot: Cancel sits beside Run so a late click can't start a new run (DECISIONS #24).
+- Nodes use an inverse-colour header with icons, and carry the run status in that header, instead of plain outlined boxes with a status line (DECISIONS #26–28).
+- The first-visit example is a single Input → Transform → Output rather than the five-node graph drawn here (DECISIONS #16).
 
 | Milestone | Scope |
 |---|---|

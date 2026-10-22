@@ -5,7 +5,7 @@ Agent: Claude Code (Claude Opus 5.5). Entries are recorded as they happen; nothi
 ## 1. Key prompts
 
 ### Prompt 1 — Kickoff: constraints, working agreement, scope (planning)
-Attached the assessment PDF and two UI sketches (edit mode with Transform Settings panel; run mode with Run details panel). Lightly edited:
+Attached the assessment PDF and two UI sketches ([edit mode with Transform Settings panel](docs/sketches/edit-mode.png); [run mode with Run details panel](docs/sketches/run-mode.png) — also shown in the README). Lightly edited:
 
 > We are building a take-home assessment: a small workflow editor with simulated execution and live progress. The total time budget is 4–6 hours, including verification and documentation.
 >
