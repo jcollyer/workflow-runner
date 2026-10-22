@@ -84,6 +84,11 @@ Lightly edited:
 - **Why:** ✏️ *in your words — the goal I'd set was a minimal, less boilerplate look (prompt 5).*
 - **Then:** after seeing my own 32 px layout in the browser, I iterated again to an inverse-colour header (small icon + name) over a light body, dark gray when unselected (DECISIONS #28).
 
+### Spinner kept spinning after a run finished (polish)
+- **What the agent produced:** the status-icon component spun whenever its status was `running`. Run details reuses it for the per-status counts, so the "Running" row's spinner kept animating after the run had settled, next to a count of 0. The agent's own browser checks had looked at node and header icons, not that row.
+- **What I found:** while testing live — "after a run finishes the 'Running' icon continues to spin."
+- **Fix:** the icon takes an optional `spinning` flag (defaulting to `status === 'running'`), and the Running count only spins while its count is above zero. Verified in the browser: three spinners mid-run (header, node, count row), none after the run succeeds.
+
 ## 3. What I kept myself
 
 Decisions made by Jeremy rather than delegated (details in [DECISIONS.md](DECISIONS.md)):

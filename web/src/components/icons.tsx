@@ -22,8 +22,19 @@ export function NodeTypeIcon({ type, size = 16 }: { type: NodeType; size?: numbe
   return <Icon size={size} aria-label={TYPE_LABELS[type]} className="type-icon" />
 }
 
-/** Decorative: always rendered next to the status label. Running spins (disabled for reduced motion). */
-export function StatusIcon({ status, size = 14 }: { status: NodeRunStatus; size?: number }) {
+/**
+ * Decorative: always rendered next to the status label. Running spins (disabled for reduced
+ * motion) unless `spinning` says otherwise, e.g. a "Running: 0" count after a run settles.
+ */
+export function StatusIcon({
+  status,
+  size = 14,
+  spinning = status === 'running',
+}: {
+  status: NodeRunStatus
+  size?: number
+  spinning?: boolean
+}) {
   const Icon = STATUS_ICONS[status]
-  return <Icon size={size} aria-hidden="true" className={status === 'running' ? 'status-icon spin' : 'status-icon'} />
+  return <Icon size={size} aria-hidden="true" className={spinning ? 'status-icon spin' : 'status-icon'} />
 }

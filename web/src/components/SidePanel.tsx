@@ -142,7 +142,7 @@ function RunDetailsPanel({ run }: { run: Extract<RunState, { phase: 'active' }> 
             {COUNTED_STATUSES.map((status) => (
               <div key={status} className={`details__row status--${status}`}>
                 <dt>
-                  <StatusIcon status={status} />
+                  <StatusIcon status={status} spinning={status === 'running' && counts.running > 0} />
                   {NODE_STATUS_LABELS[status]}
                 </dt>
                 <dd>{counts[status]}</dd>
